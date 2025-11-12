@@ -1,85 +1,61 @@
-# `@napi-rs/package-template`
+# `music-tag-native`
 
-![https://github.com/napi-rs/package-template/actions](https://github.com/napi-rs/package-template/workflows/CI/badge.svg)
+Music tag reader / writter in Node.js / Browser, powered by [`napi-rs`](https://github.com/napi-rs/napi-rs) and [`lofty`](https://github.com/Serial-ATA/lofty-rs)
 
-> Template project for writing node packages with napi-rs.
+## Install
 
-# Usage
-
-1. Click **Use this template**.
-2. **Clone** your project.
-3. Run `pnpm install` to install dependencies.
-4. Run `npx napi rename -n [name]` command under the project folder to rename your package.
-
-## Install this test package
-
+```sh
+npm i music-tag-native
 ```
-pnpm add @napi-rs/package-template
+```sh
+yarn add music-tag-native
+```
+```sh
+pnpm add music-tag-native
+```
+```sh
+bun i music-tag-native
 ```
 
 ## Usage
 
-### Build
+Browser
 
-After `pnpm build` command, you can see `package-template.[darwin|win32|linux].node` file in project root. This is the native addon built from [lib.rs](./src/lib.rs).
+```ts
+import { MusicTagger } from 'music-tag-native'
+import url from '../samples/flac.flac?url'
 
-### Test
+console.time('total')
 
-With [ava](https://github.com/avajs/ava), run `pnpm test` to testing native addon. You can also switch to another testing framework if you want.
+const tagger = new MusicTagger()
 
-### CI
+const _ = await fetch(url).then(res => res.arrayBuffer())
+const buffer = new Uint8Array(_)
+tagger.loadBuffer(buffer)
+tagger.title = 'test'
 
-With GitHub Actions, each commit and pull request will be built and tested automatically in [`node@18`, `node@20`] x [`macOS`, `Linux`, `Windows`] matrix. You will never be afraid of the native addon broken in these platforms.
+tagger.saveBuffer()
+console.log(tagger.title)
 
-### Release
+getPictureBase64(file.pictures[0])
+  .then(d => document.querySelector('img')!.src = d)
 
-Release native package is very difficult in old days. Native packages may ask developers who use it to install `build toolchain` like `gcc/llvm`, `node-gyp` or something more.
-
-With `GitHub actions`, we can easily prebuild a `binary` for major platforms. And with `N-API`, we should never be afraid of **ABI Compatible**.
-
-The other problem is how to deliver prebuild `binary` to users. Downloading it in `postinstall` script is a common way that most packages do it right now. The problem with this solution is it introduced many other packages to download binary that has not been used by `runtime codes`. The other problem is some users may not easily download the binary from `GitHub/CDN` if they are behind a private network (But in most cases, they have a private NPM mirror).
-
-In this package, we choose a better way to solve this problem. We release different `npm packages` for different platforms. And add it to `optionalDependencies` before releasing the `Major` package to npm.
-
-`NPM` will choose which native package should download from `registry` automatically. You can see [npm](./npm) dir for details. And you can also run `pnpm add @napi-rs/package-template` to see how it works.
-
-## Develop requirements
-
-- Install the latest `Rust`
-- Install `Node.js@16+` which fully supported `Node-API`
-- Run `corepack enable`
-
-## Test in local
-
-- pnpm
-- pnpm build
-- pnpm test
-
-And you will see:
-
-```bash
-$ ava --verbose
-
-  ✔ sync function from native code
-  ✔ sleep function from native code (201ms)
-  ─
-
-  2 tests passed
-✨  Done in 1.12s.
+console.timeEnd('total')
 ```
 
-## Release package
+Node.js
 
-Ensure you have set your **NPM_TOKEN** in the `GitHub` project setting.
+```ts
+import { MusicTagger } from 'music-tag-native'
 
-In `Settings -> Secrets`, add **NPM_TOKEN** into it.
+const tagger = new MusicTagger()
+tagger.loadPath("/path/to/the/file")
+tagger.title = 'test'
 
-When you want to release the package:
-
+tagger.savePath()
+console.log(tagger.title)
 ```
-npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease [--preid=<prerelease-id>] | from-git]
 
-git push
-```
+## License
 
-GitHub actions will do the rest job for you.
+MIT

@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "music_tag_native"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "lofty",
  "napi",

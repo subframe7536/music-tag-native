@@ -1,9 +1,8 @@
-
 [package]
-authors = ["LongYinan <lynweklm@gmail.com>"]
+authors = ["subframe7536 <1667077010@qq.com>"]
 edition = "2021"
 name = "music_tag_native"
-version = "0.1.0"
+version = "0.0.0"
 
 [lib]
 crate-type = ["cdylib"]
@@ -18,5 +17,6 @@ napi-build = "2"
 
 [profile.release]
 lto = true
+opt-level = "s"
 codegen-units = 1
 strip = "symbols"

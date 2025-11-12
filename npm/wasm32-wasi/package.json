@@ -1,0 +1,53 @@
+{
+  "name": "music-tag-native-wasm32-wasi",
+  "version": "0.0.0",
+  "cpu": [
+    "wasm32"
+  ],
+  "main": "music-tag-native.wasi.cjs",
+  "files": [
+    "music-tag-native.wasm32-wasi.wasm",
+    "music-tag-native.wasi.cjs",
+    "music-tag-native.wasi-browser.js",
+    "wasi-worker.mjs",
+    "wasi-worker-browser.mjs"
+  ],
+  "description": "Music tag reader/writer in Node.js/Browser, powered by lofty and napi-rs",
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api",
+    "music",
+    "metadata",
+    "audio",
+    "tag",
+    "ID3",
+    "ID3v1",
+    "ID3v2",
+    "Vorbis",
+    "mp3",
+    "flac",
+    "wav",
+    "m4a",
+    "ogg"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "url": "git+ssh://git@github.com/subframe7536/music-tag-native.git",
+    "type": "git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "browser": "music-tag-native.wasi-browser.js",
+  "dependencies": {
+    "@napi-rs/wasm-runtime": "^1.0.7"
+  }
+}

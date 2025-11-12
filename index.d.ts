@@ -10,11 +10,26 @@ export declare class MetaPicture {
 
 export declare class MusicTagger {
   constructor()
+  /** Load music file from buffer */
   loadBuffer(buffer: Uint8Array): void
+  /**
+   * Load music file from file path
+   *
+   * Invalid in wasm
+   */
+  loadPath(path: string): void
+  /** Drop current file */
   dispose(): void
-  isDispose(): boolean
-  /** Save changes */
-  save(): void
+  /** Check if current file is disposed */
+  isDisposed(): boolean
+  /** Save changes to buffer */
+  saveBuffer(): void
+  /**
+   * Save changes to file path
+   *
+   * Invalid in wasm
+   */
+  savePath(path?: string | undefined | null): void
   /**
    * Get buffer
    * Make sure run `save()` before
@@ -24,7 +39,12 @@ export declare class MusicTagger {
   get quality(): Quality
   /** Audio bit depth in bits */
   get bitDepth(): number | null
-  /** Audio bit rate in kbps */
+  /**
+   * Audio bit rate in kbps
+   *
+   * Note: If the audio property not available,
+   * the getter will try to calculates an approximate bitrate including metadata size.
+   */
   get bitRate(): number | null
   /** Audio sample rate in Hz */
   get sampleRate(): number | null

@@ -35,6 +35,7 @@ pub enum Quality {
 const ERR_NO_TAG: &str = "File must contain at least one tag";
 const ERR_DISPOSED: &str = "File has been disposed";
 const ERR_NO_BUFFER: &str = "File has no buffer";
+const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const MIN_BITRATE: u32 = 8;
 const MAX_BITRATE: u32 = 10_000;
 const HIRES_MIN_SAMPLE_RATE: u32 = 44_100;
@@ -92,6 +93,7 @@ impl MusicTagger {
         MusicTagger { inner: None }
     }
 
+    /// Load music file from buffer
     #[napi]
     pub fn load_buffer(&mut self, buffer: Uint8Array) -> Result<()> {
         self.dispose();
@@ -116,11 +118,16 @@ impl MusicTagger {
         }
     }
 
+    /// Load music file from file path
+    ///
+    /// Invalid in wasm
     #[napi]
-    #[cfg(not(all(target_arch = "wasm32", target_os = "wasi")))]
     pub fn load_path(&mut self, path: String) -> Result<()> {
-        self.dispose();
+        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+            return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+        }
 
+        self.dispose();
         let file = Probe::open(&path)
             .map_err(|e| Error::new(Status::InvalidArg, &e.to_string()))?
             .guess_file_type()
@@ -141,6 +148,7 @@ impl MusicTagger {
         }
     }
 
+    /// Drop current file
     #[napi]
     pub fn dispose(&mut self) {
         if self.inner.is_some() {
@@ -148,6 +156,7 @@ impl MusicTagger {
         }
     }
 
+    /// Check if current file is disposed
     #[napi]
     pub fn is_disposed(&self) -> bool {
         self.inner.is_none()
@@ -174,10 +183,15 @@ impl MusicTagger {
         Ok(())
     }
 
-    /// Save changes to path
+    /// Save changes to file path
+    ///
+    /// Invalid in wasm
     #[napi]
-    #[cfg(not(all(target_arch = "wasm32", target_os = "wasi")))]
     pub fn save_path(&mut self, path: Option<String>) -> Result<()> {
+        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+            return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+        }
+
         let inner = self.inner_mut()?;
 
         let target_path: &str = match (&path, &inner.path) {

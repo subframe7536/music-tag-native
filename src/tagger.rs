@@ -25,23 +25,13 @@ struct MetaFileInner {
     path: Option<String>,
 }
 
-#[napi]
-pub enum Quality {
-    HQ,
-    SQ,
-    HiRes,
-}
-
 const ERR_NO_TAG: &str = "File must contain at least one tag";
 const ERR_DISPOSED: &str = "File has been disposed";
-const ERR_NO_BUFFER: &str = "File has no buffer";
+const ERR_NO_BUFFER: &str = "Tagger's buffer is empty";
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
-const MIN_BITRATE: u32 = 8;
-const MAX_BITRATE: u32 = 10_000;
-const HIRES_MIN_SAMPLE_RATE: u32 = 44_100;
-const HIRES_MIN_BIT_DEPTH: u8 = 16;
 
 impl MusicTagger {
+    /// Get a reference to the internal file state
     #[inline]
     fn inner(&self) -> Result<&MetaFileInner> {
         self.inner
@@ -49,6 +39,7 @@ impl MusicTagger {
             .ok_or_else(|| Error::new(Status::GenericFailure, ERR_DISPOSED))
     }
 
+    /// Get a mutable reference to the internal file state
     #[inline]
     fn inner_mut(&mut self) -> Result<&mut MetaFileInner> {
         self.inner
@@ -56,6 +47,7 @@ impl MusicTagger {
             .ok_or_else(|| Error::new(Status::GenericFailure, ERR_DISPOSED))
     }
 
+    /// Execute a function on the primary or first available tag
     fn try_tag<R, F>(&self, f: F) -> Result<Option<R>>
     where
         F: FnOnce(&Tag) -> Option<R>,
@@ -68,6 +60,7 @@ impl MusicTagger {
             .and_then(f))
     }
 
+    /// Execute a mutable function on the primary or first available tag
     fn try_tag_mut<F>(&mut self, f: F) -> Result<()>
     where
         F: FnOnce(&mut Tag),
@@ -88,12 +81,25 @@ impl MusicTagger {
 
 #[napi]
 impl MusicTagger {
+    /// @constructor
+    /// Creates a new MusicTagger instance
+    ///
+    /// The instance starts in an uninitialized state. You must call either
+    /// `loadBuffer()` (Browser) or `loadPath()` (Node.js) to load an audio
+    /// file before using other methods.
     #[napi(constructor)]
     pub fn new() -> Self {
         MusicTagger { inner: None }
     }
 
-    /// Load music file from buffer
+    /// Load music file from a byte buffer
+    ///
+    /// @param buffer A Uint8Array containing the audio file data
+    ///
+    /// @throws If the buffer doesn't contain a valid audio file
+    /// @throws If the file doesn't contain any metadata tags
+    ///
+    /// @note This method disposes any previously loaded file before loading the new one.
     #[napi]
     pub fn load_buffer(&mut self, buffer: Uint8Array) -> Result<()> {
         self.dispose();
@@ -118,9 +124,16 @@ impl MusicTagger {
         }
     }
 
-    /// Load music file from file path
+    /// Load music file from a file path
     ///
-    /// Invalid in wasm
+    /// @param path The file system path to the audio file
+    ///
+    /// @throws If the path doesn't exist or isn't accessible
+    /// @throws If the file doesn't contain a valid audio format
+    /// @throws If the file doesn't contain any metadata tags
+    ///
+    /// @note This method disposes any previously loaded file before loading the new one
+    /// @note Not available in WebAssembly environments due to file system restrictions.
     #[napi]
     pub fn load_path(&mut self, path: String) -> Result<()> {
         if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
@@ -148,7 +161,12 @@ impl MusicTagger {
         }
     }
 
-    /// Drop current file
+    /// Dispose of the currently loaded file
+    ///
+    /// Releases all resources associated with the loaded audio file.
+    /// After calling this method, the instance returns to an uninitialized state.
+    ///
+    /// @note Any unsaved changes will be lost when disposing.
     #[napi]
     pub fn dispose(&mut self) {
         if self.inner.is_some() {
@@ -156,13 +174,23 @@ impl MusicTagger {
         }
     }
 
-    /// Check if current file is disposed
+    /// Check if the current file is disposed. Use this method to verify
+    /// if the instance is ready for operations before calling other methods.
+    ///
+    /// @returns `true` if no file is currently loaded, `false` otherwise
     #[napi]
     pub fn is_disposed(&self) -> bool {
         self.inner.is_none()
     }
 
-    /// Save changes to buffer
+    /// Save metadata changes back to the internal buffer
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    /// @throws If the file was loaded from a path (`ERR_NO_BUFFER`)
+    /// @throws If saving fails due to file format constraints
+    ///
+    /// @note This method only works for files loaded via `loadBuffer()`
+    /// @note After saving, the modified buffer can be retrieved using the `buffer` getter
     #[napi]
     pub fn save_buffer(&mut self) -> Result<()> {
         let inner = self.inner_mut()?;
@@ -183,9 +211,16 @@ impl MusicTagger {
         Ok(())
     }
 
-    /// Save changes to file path
+    /// Save metadata changes to a file path
     ///
-    /// Invalid in wasm
+    /// @param path Optional file path to save the file. If `undefined`, saves to the original path
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    /// @throws If no path is provided and file wasn't loaded from a path (`ERR_NO_BUFFER`)
+    /// @throws When used in WebAssembly environments
+    /// @throws If saving fails due to file system or format constraints
+    ///
+    /// @note Not available in WebAssembly environments due to file system restrictions
     #[napi]
     pub fn save_path(&mut self, path: Option<String>) -> Result<()> {
         if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
@@ -215,43 +250,68 @@ impl MusicTagger {
         Ok(())
     }
 
-    /// Get buffer
-    /// Make sure run `save()` before
+    /// Get the audio file buffer with current metadata
+    ///
+    /// @returns The audio file data as a byte array
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note For files loaded via `loadBuffer()`, call `saveBuffer()` first to ensure
+    /// metadata changes are applied. For files loaded via `loadPath()`, this
+    /// returns an empty buffer.
     #[napi(getter)]
     pub fn buffer(&self) -> Result<Uint8Array> {
         Ok(Uint8Array::new(self.inner()?.buffer.clone()))
     }
 
-    /// Audio file quality
+    /// Get the audio file quality classification
+    ///
+    /// @returns The quality classification ("HQ", "SQ", or "HiRes")
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// Quality is determined based on file format, sample rate, and bit depth:
+    /// - HQ: Lossy formats (MP3, AAC, etc.)
+    /// - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
+    /// - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
     #[napi(getter)]
-    pub fn quality(&self) -> Result<Quality> {
+    pub fn quality(&self) -> Result<String> {
         let is_lossless = matches!(
             self.inner()?.file.file_type(),
             FileType::Flac | FileType::Ape | FileType::Aiff | FileType::Wav | FileType::WavPack
         );
 
         if !is_lossless {
-            Ok(Quality::HQ)
+            Ok(String::from("HQ"))
         } else {
             match (self.sample_rate()?, self.bit_depth()?) {
-                (Some(sr), Some(bd)) if sr > HIRES_MIN_SAMPLE_RATE && bd >= HIRES_MIN_BIT_DEPTH => {
-                    Ok(Quality::HiRes)
-                }
-                _ => Ok(Quality::SQ),
+                (Some(sr), Some(bd)) if sr > 44100 && bd >= 16 => Ok(String::from("HiRes")),
+                _ => Ok(String::from("SQ")),
             }
         }
     }
 
-    /// Audio bit depth in bits
+    /// Get the audio bit depth
+    ///
+    /// @returns Bit depth in bits, or `null` if not available
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// Common values: 16 (CD quality), 24 (Hi-Res), 32 (studio quality)
     #[napi(getter)]
     pub fn bit_depth(&self) -> Result<Option<u8>> {
         Ok(self.inner()?.file.properties().bit_depth())
     }
 
-    /// Audio bit rate in kbps
+    /// Get the audio bit rate
     ///
-    /// Note: If the audio property not available,
-    /// the getter will try to calculates an approximate bitrate including metadata size.
+    /// @returns Bit rate in kbps, or `null` if not available
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note If the audio properties don't provide a bitrate, this method calculates
+    /// an approximate bitrate based on file size and duration, including metadata.
+    /// The calculated bitrate is constrained between MIN_BITRATE and MAX_BITRATE.
     #[napi(getter)]
     pub fn bit_rate(&self) -> Result<Option<u32>> {
         if let Some(bitrate) = self.inner()?.file.properties().audio_bitrate() {
@@ -271,30 +331,51 @@ impl MusicTagger {
         let file_size_bytes = self.inner()?.buffer.len() as f64;
         let bitrate_kbps = ((file_size_bytes * 8.0) / (duration_secs * 1000.0)).round() as u32;
 
-        Ok((MIN_BITRATE..=MAX_BITRATE)
-            .contains(&bitrate_kbps)
-            .then_some(bitrate_kbps))
+        Ok((8..=100_00).contains(&bitrate_kbps).then_some(bitrate_kbps))
     }
 
-    /// Audio sample rate in Hz
+    /// Get the audio sample rate
+    ///
+    /// @returns Sample rate in Hz, or `null` if not available
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// Common values: 44100 (CD), 48000 (DVD), 96000, 192000 (Hi-Res)
     #[napi(getter)]
     pub fn sample_rate(&self) -> Result<Option<u32>> {
         Ok(self.inner()?.file.properties().sample_rate())
     }
 
-    /// Number of channels
+    /// Get the number of audio channels
+    ///
+    /// @returns Number of channels, or `null` if not available
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// Common values: 1 (mono), 2 (stereo), 6 (5.1 surround)
+    /// Common values: 1 (mono), 2 (stereo), 6 (5.1 surround), 8 (7.1 surround)
     #[napi(getter)]
     pub fn channels(&self) -> Result<Option<u8>> {
         Ok(self.inner()?.file.properties().channels())
     }
 
-    /// Duration in milliseconds
+    /// Get the audio duration
+    ///
+    /// @returns Duration in seconds, or `null` if not available
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn duration(&self) -> Result<u32> {
         Ok(self.inner()?.file.properties().duration().as_millis() as u32)
     }
 
-    /// File's tag type
+    /// Get the file's metadata tag type
+    ///
+    /// Supported tag types: "ID3V1", "ID3V2", "APE", "VORBIS", "MP4", "AIFF", "RIFF"
+    ///
+    /// @returns Tag type as string, or `null` if not recognized
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn tag_type(&self) -> Result<Option<String>> {
         self.try_tag(|tag| match tag.tag_type() {
@@ -309,7 +390,11 @@ impl MusicTagger {
         })
     }
 
-    /// The title of the music file
+    /// Get the title metadata
+    ///
+    /// @returns Track title, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn title(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.title().map(String::from))
@@ -320,7 +405,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_title(title))
     }
 
-    /// The artist of the music file
+    /// Get the artist metadata
+    ///
+    /// @returns Track artist, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn artist(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.artist().map(String::from))
@@ -331,7 +420,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_artist(artist))
     }
 
-    /// The album of the music file
+    /// Get the album metadata
+    ///
+    /// @returns Album name, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn album(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.album().map(String::from))
@@ -342,7 +435,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_album(album))
     }
 
-    /// The year of the music file
+    /// Get the year metadata
+    ///
+    /// @returns Release year, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn year(&self) -> Result<Option<u32>> {
         self.try_tag(|tag| tag.year())
@@ -353,7 +450,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_year(year))
     }
 
-    /// The genre of the music file
+    /// Get the genre metadata
+    ///
+    /// @returns Music genre, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn genre(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.genre().map(String::from))
@@ -364,7 +465,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_genre(genre))
     }
 
-    /// The track number of the music file
+    /// Get the track number metadata
+    ///
+    /// @returns Track number, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn track_number(&self) -> Result<Option<u32>> {
         self.try_tag(|tag| tag.track())
@@ -375,7 +480,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_track(track_number))
     }
 
-    /// The disc number of the music file
+    /// Get the disc number metadata
+    ///
+    /// @returns Disc number, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn disc_number(&self) -> Result<Option<u32>> {
         self.try_tag(|tag| tag.disk())
@@ -386,7 +495,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_disk(disc_number))
     }
 
-    /// The total number of tracks
+    /// Get the total number of tracks in the album
+    ///
+    /// @returns Total track count, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn track_total(&self) -> Result<Option<u32>> {
         self.try_tag(|tag| tag.track_total())
@@ -397,7 +510,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_track_total(track_total))
     }
 
-    /// The total number of discs
+    /// Get the total number of discs in the album
+    ///
+    /// @returns Total disc count, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn discs_total(&self) -> Result<Option<u32>> {
         self.try_tag(|tag| tag.disk_total())
@@ -408,7 +525,11 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_disk_total(discs_total))
     }
 
-    /// The comment of the music file
+    /// Get the comment metadata
+    ///
+    /// @returns User comment, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn comment(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.comment().map(String::from))
@@ -419,7 +540,13 @@ impl MusicTagger {
         self.try_tag_mut(|tag| tag.set_comment(comment))
     }
 
-    /// The Album Artist of the music file
+    /// Get the album artist metadata
+    ///
+    /// @returns Album artist, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Album artist differs from track artist and represents the primary artist for the entire album.
     #[napi(getter)]
     pub fn album_artist(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::AlbumArtist).map(String::from))
@@ -432,7 +559,11 @@ impl MusicTagger {
         })
     }
 
-    /// The Composer of the music file
+    /// Get the composer metadata
+    ///
+    /// @returns Music composer, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn composer(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::Composer).map(String::from))
@@ -445,7 +576,11 @@ impl MusicTagger {
         })
     }
 
-    /// The Conductor of the music file
+    /// Get the conductor metadata
+    ///
+    /// @returns Orchestra conductor, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn conductor(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::Conductor).map(String::from))
@@ -458,7 +593,11 @@ impl MusicTagger {
         })
     }
 
-    /// The Lyricist of the music file
+    /// Get the lyricist metadata
+    ///
+    /// @returns Song lyricist, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn lyricist(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::Lyricist).map(String::from))
@@ -471,7 +610,11 @@ impl MusicTagger {
         })
     }
 
-    /// The Publisher of the music file
+    /// Get the publisher metadata
+    ///
+    /// @returns Music publisher, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn publisher(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::Publisher).map(String::from))
@@ -484,7 +627,11 @@ impl MusicTagger {
         })
     }
 
-    /// The lyrics of the music file
+    /// Get the lyrics metadata
+    ///
+    /// @returns Song lyrics, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn lyrics(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::Lyrics).map(String::from))
@@ -497,7 +644,11 @@ impl MusicTagger {
         })
     }
 
-    /// The copyright of the music file
+    /// Get the copyright metadata
+    ///
+    /// @returns Copyright information, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
     #[napi(getter)]
     pub fn copyright(&self) -> Result<Option<String>> {
         self.try_tag(|tag| tag.get_string(&ItemKey::CopyrightMessage).map(String::from))
@@ -510,7 +661,13 @@ impl MusicTagger {
         })
     }
 
-    /// The track replay gain of the music file
+    /// Get the track replay gain metadata
+    ///
+    /// @returns Track replay gain in dB, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Replay gain is used to normalize playback volume across different tracks.
     #[napi(getter)]
     pub fn track_replay_gain(&self) -> Result<Option<f64>> {
         self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainTrackGain)?))
@@ -526,7 +683,13 @@ impl MusicTagger {
         })
     }
 
-    /// The track replay peak of the music file
+    /// Get the track replay peak metadata
+    ///
+    /// @returns Track replay peak value, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Replay peak represents the maximum amplitude level in the track.
     #[napi(getter)]
     pub fn track_replay_peak(&self) -> Result<Option<f64>> {
         self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainTrackPeak)?))
@@ -542,7 +705,13 @@ impl MusicTagger {
         })
     }
 
-    /// The album replay gain of the music file
+    /// Get the album replay gain metadata
+    ///
+    /// @returns Album replay gain in dB, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Album replay gain normalizes playback volume across different albums.
     #[napi(getter)]
     pub fn album_replay_gain(&self) -> Result<Option<f64>> {
         self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainAlbumGain)?))
@@ -558,7 +727,13 @@ impl MusicTagger {
         })
     }
 
-    /// The album replay peak of the music file
+    /// Get the album replay peak metadata
+    ///
+    /// @returns Album replay peak value, or `null` if not set
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Album replay peak represents the maximum amplitude level in the album.
     #[napi(getter)]
     pub fn album_replay_peak(&self) -> Result<Option<f64>> {
         self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainAlbumPeak)?))
@@ -574,7 +749,14 @@ impl MusicTagger {
         })
     }
 
-    /// The pictures of the music file
+    /// Get the embedded pictures/album art from the music file
+    ///
+    /// @returns Array of embedded pictures, or `null` if no pictures are embedded
+    ///
+    /// @throws If no file is loaded (`ERR_DISPOSED`)
+    ///
+    /// @note Returns all embedded pictures including album art, artist photos, etc.
+    /// @note Each picture includes metadata like picture type and image data.
     #[napi(getter)]
     pub fn get_pictures(&self) -> Result<Option<Vec<MetaPicture>>> {
         self.try_tag(|tag| from_lofty_picture_slice(tag.pictures()))

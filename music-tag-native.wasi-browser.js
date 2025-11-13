@@ -58,4 +58,3 @@ const {
 export default __napiModule.exports
 export const MetaPicture = __napiModule.exports.MetaPicture
 export const MusicTagger = __napiModule.exports.MusicTagger
-export const Quality = __napiModule.exports.Quality

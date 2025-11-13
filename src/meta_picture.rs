@@ -1,6 +1,7 @@
 use lofty::picture::{MimeType, Picture, PictureType};
-use napi::bindgen_prelude::*;
+use napi::bindgen_prelude::Uint8Array;
 use napi_derive::napi;
+use std::borrow::Cow;
 
 #[napi]
 pub struct MetaPicture {
@@ -31,21 +32,20 @@ pub fn from_lofty_picture_slice(pics: &[Picture]) -> Option<Vec<MetaPicture>> {
     }
 
     let mut result = Vec::with_capacity(pics.len());
-    for pic in pics {
-        result.push(from_lofty_picture(pic));
-    }
+    result.extend(pics.iter().map(from_lofty_picture));
     Some(result)
 }
 
 pub fn from_lofty_picture(pic: &Picture) -> MetaPicture {
     MetaPicture {
-        cover_type: pic.pic_type().as_ape_key().unwrap_or("Unkown").to_string(),
-        mime_type: match pic.mime_type() {
-            Some(mime) => Some(mime.as_str().to_string()),
-            None => None,
-        },
-        description: pic.description().map(String::from),
-        data: pic.data().to_vec().into(),
+        cover_type: pic
+            .pic_type()
+            .as_ape_key()
+            .map_or_else(|| Cow::Borrowed("Unknown"), Cow::Borrowed)
+            .into_owned(),
+        mime_type: pic.mime_type().map(|mime| mime.as_str().to_string()),
+        description: pic.description().map(ToString::to_string),
+        data: pic.data().into(),
     }
 }
 

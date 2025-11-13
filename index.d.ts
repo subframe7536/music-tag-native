@@ -19,27 +19,23 @@ export declare class MusicTagger {
    */
   constructor()
   /**
-   * Load music file from a byte buffer
+   * Load music file from a byte buffer (dispose the old one before)
    *
    * @param buffer A Uint8Array containing the audio file data
    *
    * @throws If the buffer doesn't contain a valid audio file
    * @throws If the file doesn't contain any metadata tags
-   *
-   * @note This method disposes any previously loaded file before loading the new one.
    */
   loadBuffer(buffer: Uint8Array): void
   /**
-   * Load music file from a file path
+   * Load music file from a file path (dispose the old one before)
    *
    * @param path The file system path to the audio file
    *
    * @throws If the path doesn't exist or isn't accessible
    * @throws If the file doesn't contain a valid audio format
    * @throws If the file doesn't contain any metadata tags
-   *
-   * @note This method disposes any previously loaded file before loading the new one
-   * @note Not available in WebAssembly environments due to file system restrictions.
+   * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
   loadPath(path: string): void
   /**
@@ -52,44 +48,23 @@ export declare class MusicTagger {
    */
   dispose(): void
   /**
-   * Check if the current file is disposed
+   * Check if the current file is disposed. Use this method to verify
+   * if the instance is ready for operations before calling other methods.
    *
    * @returns `true` if no file is currently loaded, `false` otherwise
-   *
-   * Use this method to verify if the instance is ready for operations
-   * before calling other methods.
    */
   isDisposed(): boolean
   /**
    * Save metadata changes back to the internal buffer
    *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
-   * @throws If the file was loaded from a path (`ERR_NO_BUFFER`)
+   * @throws If no file or buffer loaded
    * @throws If saving fails due to file format constraints
-   *
-   * @note This method only works for files loaded via `loadBuffer()`
-   * @note After saving, the modified buffer can be retrieved using the `buffer` getter
    */
-  saveBuffer(): void
+  save(): void
   /**
-   * Save metadata changes to a file path
+   * Current audio file buffer as a `Uint8Array`
    *
-   * @param path Optional file path to save the file. If `undefined`, saves to the original path
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
-   * @throws If no path is provided and file wasn't loaded from a path (`ERR_NO_BUFFER`)
-   * @throws When used in WebAssembly environments
-   * @throws If saving fails due to file system or format constraints
-   *
-   * @note Not available in WebAssembly environments due to file system restrictions
-   */
-  savePath(path?: string | undefined | null): void
-  /**
-   * Get the audio file buffer with current metadata
-   *
-   * @returns The audio file data as a byte array
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note For files loaded via `loadBuffer()`, call `saveBuffer()` first to ensure
    * metadata changes are applied. For files loaded via `loadPath()`, this
@@ -97,11 +72,9 @@ export declare class MusicTagger {
    */
   get buffer(): Uint8Array
   /**
-   * Get the audio file quality classification
+   * Audio quality classification ("HQ", "SQ", or "HiRes")
    *
-   * @returns The quality classification ("HQ", "SQ", or "HiRes")
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * Quality is determined based on file format, sample rate, and bit depth:
    * - HQ: Lossy formats (MP3, AAC, etc.)
@@ -110,21 +83,17 @@ export declare class MusicTagger {
    */
   get quality(): string
   /**
-   * Get the audio bit depth
+   * Audio bit depth in bits, or `null` if not available
    *
-   * @returns Bit depth in bits, or `null` if not available
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * Common values: 16 (CD quality), 24 (Hi-Res), 32 (studio quality)
    */
   get bitDepth(): number | null
   /**
-   * Get the audio bit rate
+   * Audio bit rate in kbps, or `null` if not available
    *
-   * @returns Bit rate in kbps, or `null` if not available
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note If the audio properties don't provide a bitrate, this method calculates
    * an approximate bitrate based on file size and duration, including metadata.
@@ -132,253 +101,200 @@ export declare class MusicTagger {
    */
   get bitRate(): number | null
   /**
-   * Get the audio sample rate
+   * Audio sample rate in Hz, or `null` if not available
    *
-   * @returns Sample rate in Hz, or `null` if not available
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * Common values: 44100 (CD), 48000 (DVD), 96000, 192000 (Hi-Res)
    */
   get sampleRate(): number | null
   /**
-   * Get the number of audio channels
+   * Number of audio channels, or `null` if not available
    *
-   * @returns Number of channels, or `null` if not available
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * Common values: 1 (mono), 2 (stereo), 6 (5.1 surround)
    * Common values: 1 (mono), 2 (stereo), 6 (5.1 surround), 8 (7.1 surround)
    */
   get channels(): number | null
   /**
-   * Get the audio duration
+   * Audio duration in seconds, or `null` if not available
    *
-   * @returns Duration in seconds, or `null` if not available
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get duration(): number
   /**
-   * Get the file's metadata tag type
+   * File's metadata tag type, or `null` if not recognized
    *
    * Supported tag types: "ID3V1", "ID3V2", "APE", "VORBIS", "MP4", "AIFF", "RIFF"
    *
-   * @returns Tag type as string, or `null` if not recognized
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get tagType(): string | null
   /**
-   * Get the title metadata
+   * Title, or `null` if not set
    *
-   * @returns Track title, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get title(): string | null
-  set title(title: string)
+  set title(title: string | null)
   /**
-   * Get the artist metadata
+   * Artist, or `null` if not set
    *
-   * @returns Track artist, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get artist(): string | null
-  set artist(artist: string)
+  set artist(artist: string | null)
   /**
-   * Get the album metadata
+   * Album, or `null` if not set
    *
-   * @returns Album name, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get album(): string | null
-  set album(album: string)
+  set album(album: string | null)
   /**
-   * Get the year metadata
+   * Year, or `null` if not set
    *
-   * @returns Release year, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get year(): number | null
-  set year(year: number)
+  set year(year: number | null)
   /**
-   * Get the genre metadata
+   * Genre, or `null` if not set
    *
-   * @returns Music genre, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get genre(): string | null
-  set genre(genre: string)
+  set genre(genre: string | null)
   /**
-   * Get the track number metadata
+   * Track number, or `null` if not set
    *
-   * @returns Track number, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get trackNumber(): number | null
-  set trackNumber(trackNumber: number)
+  set trackNumber(trackNumber: number | null)
   /**
-   * Get the disc number metadata
+   * Disc number, or `null` if not set
    *
-   * @returns Disc number, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get discNumber(): number | null
-  set discNumber(discNumber: number)
+  set discNumber(discNumber: number | null)
   /**
-   * Get the total number of tracks in the album
+   * Total number of tracks in the album, or `null` if not set
    *
-   * @returns Total track count, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get trackTotal(): number | null
-  set trackTotal(trackTotal: number)
+  set trackTotal(trackTotal: number | null)
   /**
-   * Get the total number of discs in the album
+   * Total number of discs in the album, or `null` if not set
    *
-   * @returns Total disc count, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get discsTotal(): number | null
-  set discsTotal(discsTotal: number)
+  set discsTotal(discsTotal: number | null)
   /**
-   * Get the comment metadata
+   * Comment, or `null` if not set
    *
-   * @returns User comment, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get comment(): string | null
-  set comment(comment: string)
+  set comment(comment: string | null)
   /**
-   * Get the album artist metadata
+   * Album artist, or `null` if not set
    *
-   * @returns Album artist, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Album artist differs from track artist and represents the primary artist for the entire album.
    */
   get albumArtist(): string | null
-  set albumArtist(albumArtist: string)
+  set albumArtist(albumArtist: string | null)
   /**
-   * Get the composer metadata
+   * Composer, or `null` if not set
    *
-   * @returns Music composer, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get composer(): string | null
-  set composer(composer: string)
+  set composer(composer: string | null)
   /**
-   * Get the conductor metadata
+   * Conductor, or `null` if not set
    *
-   * @returns Orchestra conductor, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get conductor(): string | null
-  set conductor(conductor: string)
+  set conductor(conductor: string | null)
   /**
-   * Get the lyricist metadata
+   * Lyricist, or `null` if not set
    *
-   * @returns Song lyricist, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get lyricist(): string | null
-  set lyricist(lyricist: string)
+  set lyricist(lyricist: string | null)
   /**
-   * Get the publisher metadata
+   * Publisher, or `null` if not set
    *
-   * @returns Music publisher, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get publisher(): string | null
-  set publisher(publisher: string)
+  set publisher(publisher: string | null)
   /**
-   * Get the lyrics metadata
+   * Lyrics, or `null` if not set
    *
-   * @returns Song lyrics, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get lyrics(): string | null
-  set lyrics(lyrics: string)
+  set lyrics(lyrics: string | null)
   /**
-   * Get the copyright metadata
+   * Copyright information, or `null` if not set
    *
-   * @returns Copyright information, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    */
   get copyright(): string | null
-  set copyright(copyright: string)
+  set copyright(copyright: string | null)
   /**
-   * Get the track replay gain metadata
+   * Track replay gain in dB, or `null` if not set
    *
-   * @returns Track replay gain in dB, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Replay gain is used to normalize playback volume across different tracks.
    */
   get trackReplayGain(): number | null
-  set trackReplayGain(trackReplayGain: number)
+  set trackReplayGain(trackReplayGain: number | null)
   /**
-   * Get the track replay peak metadata
+   * Track replay peak value, or `null` if not set
    *
-   * @returns Track replay peak value, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Replay peak represents the maximum amplitude level in the track.
    */
   get trackReplayPeak(): number | null
-  set trackReplayPeak(trackReplayPeak: number)
+  set trackReplayPeak(trackReplayPeak: number | null)
   /**
-   * Get the album replay gain metadata
+   * Album replay gain in dB, or `null` if not set
    *
-   * @returns Album replay gain in dB, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Album replay gain normalizes playback volume across different albums.
    */
   get albumReplayGain(): number | null
-  set albumReplayGain(albumReplayGain: number)
+  set albumReplayGain(albumReplayGain: number | null)
   /**
-   * Get the album replay peak metadata
+   * Album replay peak value, or `null` if not set
    *
-   * @returns Album replay peak value, or `null` if not set
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Album replay peak represents the maximum amplitude level in the album.
    */
   get albumReplayPeak(): number | null
-  set albumReplayPeak(albumReplayPeak: number)
+  set albumReplayPeak(albumReplayPeak: number | null)
   /**
-   * Get the embedded pictures/album art from the music file
+   * Embedded pictures/album art list, or `null` if no picture is embedded
    *
-   * @returns Array of embedded pictures, or `null` if no pictures are embedded
-   *
-   * @throws If no file is loaded (`ERR_DISPOSED`)
+   * @throws If no file or buffer loaded
    *
    * @note Returns all embedded pictures including album art, artist photos, etc.
-   * @note Each picture includes metadata like picture type and image data.
    */
   get pictures(): Array<MetaPicture> | null
-  set pictures(pictures: Array<MetaPicture>)
+  set pictures(pictures: Array<MetaPicture> | null)
 }

@@ -32,9 +32,12 @@ const tagger = new MusicTagger()
 const _ = await fetch(url).then(res => res.arrayBuffer())
 const buffer = new Uint8Array(_)
 tagger.loadBuffer(buffer)
+// update the title
 tagger.title = 'test'
+// remove the album artist
+tagger.albumArtist = null
 
-tagger.saveBuffer()
+tagger.save()
 console.log(tagger.title)
 
 getPictureBase64(file.pictures[0])
@@ -52,9 +55,13 @@ const tagger = new MusicTagger()
 tagger.loadPath("/path/to/the/file")
 tagger.title = 'test'
 
-tagger.savePath()
+tagger.save()
 console.log(tagger.title)
 ```
+
+### Type Definition
+
+See [index.d.ts](./index.d.ts)
 
 ## License
 

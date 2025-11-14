@@ -56,6 +56,8 @@
     "build:wasm": "napi build --release --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "lint": "oxlint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version"
   },
@@ -72,7 +74,9 @@
     "lint-staged": "^16.1.6",
     "oxlint": "^1.14.0",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vite": "^7.2.2",
+    "vitest": "^4.0.8"
   },
   "lint-staged": {
     "*.@(js|ts|tsx)": [
@@ -89,5 +93,10 @@
     "singleQuote": true,
     "arrowParens": "always"
   },
-  "packageManager": "pnpm@10.20.0"
+  "packageManager": "pnpm@10.20.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
 }

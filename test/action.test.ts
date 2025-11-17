@@ -167,7 +167,7 @@ describe('MusicTagger', () => {
       expect(retrievedBuffer.length).toBeGreaterThan(0)
     })
 
-    it('should return empty buffer when loaded from path', () => {
+    it.skipIf(isWasi)('should return empty buffer when loaded from path', () => {
       const path = join(base, 'mp3.mp3')
       tagger.loadPath(path)
       const buffer = tagger.buffer

@@ -4,8 +4,10 @@ import { MusicTagger, MetaPicture } from '../index'
 import { base } from './const'
 import { readFileSync } from 'fs'
 
-describe('Metadata Getters and Setters', () => {
+describe.sequential('Metadata Getters and Setters', () => {
   let tagger: MusicTagger
+  const path = join(base, 'mp3.mp3')
+  const buffer = readFileSync(path)
 
   afterEach(() => {
     if (!tagger.isDisposed()) {
@@ -15,8 +17,7 @@ describe('Metadata Getters and Setters', () => {
 
   beforeEach(() => {
     tagger = new MusicTagger()
-    const path = join(base, 'mp3.mp3')
-    tagger.loadBuffer(readFileSync(path))
+    tagger.loadBuffer(buffer)
   })
 
   describe('title', () => {

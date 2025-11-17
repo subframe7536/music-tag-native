@@ -4,6 +4,8 @@ import { join } from 'path'
 import { MusicTagger } from '../index'
 import { base } from './const'
 
+const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
+
 describe('MusicTagger', () => {
   let tagger: MusicTagger
 
@@ -28,7 +30,7 @@ describe('MusicTagger', () => {
     })
   })
 
-  describe('loadPath', () => {
+  describe.skipIf(isWasi)('loadPath', () => {
     it('should load an MP3 file', () => {
       const path = join(base, 'mp3.mp3')
       tagger.loadPath(path)
@@ -95,7 +97,7 @@ describe('MusicTagger', () => {
     })
   })
 
-  describe('dispose', () => {
+  describe.skipIf(isWasi)('dispose', () => {
     it('should dispose a loaded file', () => {
       const path = join(base, 'mp3.mp3')
       tagger.loadPath(path)
@@ -134,7 +136,7 @@ describe('MusicTagger', () => {
     })
   })
 
-  describe('savePath', () => {
+  describe.skipIf(isWasi)('savePath', () => {
     it('should save to original path', () => {
       const path = join(base, 'mp3.mp3')
       tagger.loadPath(path)
@@ -240,7 +242,7 @@ describe('MusicTagger', () => {
       newTagger.dispose()
     })
 
-    it('should handle multiple file formats', () => {
+    it.skipIf(isWasi)('should handle multiple file formats', () => {
       const formats = ['mp3.mp3', 'flac.flac', 'ogg.opus', 'wav.wav']
 
       for (const file of formats) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'path'
 import { MusicTagger } from '../index'
+import { readFileSync } from 'fs'
 
 const base = 'samples'
 
@@ -18,7 +19,7 @@ describe('Audio Properties', () => {
   })
   beforeEach(() => {
     const path = join(base, 'mp3.mp3')
-    tagger.loadPath(path)
+    tagger.loadBuffer(readFileSync(path))
   })
 
   it('should have a quality classification', () => {

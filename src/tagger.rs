@@ -14,7 +14,8 @@ use crate::{
     utils::{format_replaygain_gain, format_replaygain_peak, parse_replaygain_value},
 };
 
-#[napi(custom_finalize)]
+// #[napi(custom_finalize)]
+#[napi]
 pub struct MusicTagger {
     inner: Option<MetaFileInner>,
 }
@@ -725,12 +726,12 @@ impl MusicTagger {
     }
 }
 
-impl ObjectFinalize for MusicTagger {
-    fn finalize(self, env: Env) -> Result<()> {
-        if let Some(inner) = self.inner {
-            let len = inner.buffer.len();
-            env.adjust_external_memory(-(len as i64))?;
-        }
-        Ok(())
-    }
-}
+// impl ObjectFinalize for MusicTagger {
+//     fn finalize(self, env: Env) -> Result<()> {
+//         if let Some(inner) = self.inner {
+//             let len = inner.buffer.len();
+//             env.adjust_external_memory(-(len as i64))?;
+//         }
+//         Ok(())
+//     }
+// }

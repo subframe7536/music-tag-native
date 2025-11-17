@@ -57,6 +57,7 @@
     "build:debug": "napi build --platform",
     "lint": "oxlint",
     "test": "vitest run",
+    "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version"

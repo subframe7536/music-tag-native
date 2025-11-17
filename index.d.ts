@@ -66,7 +66,7 @@ export declare class MusicTagger {
    *
    * @throws If no file or buffer loaded
    *
-   * @note For files loaded via `loadBuffer()`, call `saveBuffer()` first to ensure
+   * @note For files loaded via `loadBuffer()`, call `save()` first to ensure
    * metadata changes are applied. For files loaded via `loadPath()`, this
    * returns an empty buffer.
    */

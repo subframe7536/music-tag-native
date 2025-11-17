@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Music Tag Native • WASM playground</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          'Inter',
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        line-height: 1.4;
+        font-size: 16px;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 55%) fixed,
+          #0f172a;
+        min-height: 100vh;
+        color: #f8fafc;
+        padding: 2rem;
+        box-sizing: border-box;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 0.5rem;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .panel {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 25px 80px rgba(2, 6, 23, 0.5);
+      }
+
+      .panel--note {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        text-align: center;
+      }
+
+      .sample-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .sample-button {
+        border-radius: 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(30, 41, 59, 0.8);
+        color: inherit;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          transform 0.15s ease,
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .sample-button:hover:not(:disabled) {
+        border-color: #a5b4fc;
+        box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+        transform: translateY(-2px);
+      }
+
+      .sample-button strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .sample-button span {
+        display: block;
+        font-size: 0.85rem;
+        color: #cbd5f5;
+        margin-top: 0.25rem;
+      }
+
+      .sample-button:disabled {
+        cursor: progress;
+        opacity: 0.65;
+      }
+
+      .sample-button.is-active {
+        border-color: #c084fc;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(236, 72, 153, 0.25));
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+
+      td {
+        padding: 0.4rem 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        vertical-align: top;
+      }
+
+      td:first-child {
+        color: #94a3b8;
+        width: 180px;
+        font-weight: 600;
+      }
+
+      td code {
+        font-size: 0.85rem;
+        background: rgba(15, 23, 42, 0.6);
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.35rem;
+      }
+
+      .table-empty td {
+        text-align: center;
+        font-style: italic;
+        color: #94a3b8;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      .status-text {
+        font-size: 1rem;
+      }
+
+      .status-text.error {
+        color: #f87171;
+      }
+
+      .pictures {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .picture-card {
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 0.75rem;
+        overflow: hidden;
+        width: min(220px, 100%);
+        background: rgba(15, 23, 42, 0.6);
+      }
+
+      .picture-card img {
+        display: block;
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        background: #020617;
+      }
+
+      .picture-card figcaption {
+        padding: 0.75rem;
+        font-size: 0.8rem;
+        color: #cbd5f5;
+      }
+
+      .empty-state {
+        color: #94a3b8;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app">
+      <header class="panel">
+        <h1>Music Tag Native · WASM playground</h1>
+        <p>
+          Inspect rich metadata for the sample files in <code>@samples</code> by loading the WebAssembly build of
+          <code>music-tag-native</code>. Pick a file below to parse its tags in the browser.
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2>Sample files</h2>
+        <div class="sample-list" data-sample-list></div>
+      </section>
+
+      <section class="panel">
+        <h2>Status</h2>
+        <p class="status-text" data-status>Choose a sample to begin.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Audio properties</h2>
+        <table>
+          <tbody data-properties></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Metadata tags</h2>
+        <table>
+          <tbody data-tags></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Replay gain</h2>
+        <table>
+          <tbody data-replay></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Embedded pictures</h2>
+        <div class="pictures" data-pictures></div>
+      </section>
+
+      <section class="panel panel--note">
+        <p>Powered by <code>music-tag-native.wasi-browser.js</code> through the @napi-rs WASI runtime.</p>
+      </section>
+    </main>
+
+    <script type="module" src="/index.ts"></script>
+  </body>
+</html>

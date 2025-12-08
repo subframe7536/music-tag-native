@@ -1,3 +1,4 @@
+// oxlint-disable no-unused-expressions
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'

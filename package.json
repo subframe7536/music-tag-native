@@ -1,6 +1,6 @@
 {
   "name": "music-tag-native",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Music tag reader / writter in Node.js / Browser, powered by napi-rs and lofty",
   "main": "index.js",
   "types": "index.d.ts",
@@ -65,7 +65,7 @@
     "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
-    "release": "pnpm build && pnpm test && bumpp"
+    "release": "pnpm build && pnpm test && bumpp --all"
   },
   "devDependencies": {
     "@emnapi/core": "^1.7.1",

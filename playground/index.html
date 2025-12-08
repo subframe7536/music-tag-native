@@ -185,6 +185,89 @@
         color: #94a3b8;
         font-style: italic;
       }
+
+      .action-button {
+        border-radius: 0.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(99, 102, 241, 0.2);
+        color: #e0e7ff;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.15s ease;
+      }
+
+      .action-button:hover:not(:disabled) {
+        background: rgba(99, 102, 241, 0.4);
+        border-color: #a5b4fc;
+        transform: translateY(-1px);
+      }
+
+      .action-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .action-button.active {
+        background: rgba(236, 72, 153, 0.3);
+        border-color: #f9a8d4;
+      }
+
+      .editable-input {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 0.35rem;
+        color: #f8fafc;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.9rem;
+        width: 100%;
+        max-width: 400px;
+        font-family: inherit;
+      }
+
+      .editable-input:focus {
+        outline: none;
+        border-color: #a5b4fc;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      }
+
+      .editable-input::placeholder {
+        color: #64748b;
+      }
+
+      .tag-modified {
+        background: rgba(236, 72, 153, 0.1);
+      }
+
+      .download-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .download-button {
+        border-radius: 0.5rem;
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        background: rgba(34, 197, 94, 0.2);
+        color: #bbf7d0;
+        padding: 0.65rem 1.25rem;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: all 0.15s ease;
+      }
+
+      .download-button:hover:not(:disabled) {
+        background: rgba(34, 197, 94, 0.4);
+        border-color: #86efac;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+      }
+
+      .download-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -216,21 +299,27 @@
 
       <section class="panel">
         <h2>Metadata tags</h2>
+        <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="action-button" data-edit-mode>✏️ Edit Mode</button>
+          <button class="action-button" data-save-changes disabled>💾 Save Changes</button>
+          <button class="action-button" data-reset-changes disabled>↩️ Reset</button>
+        </div>
         <table>
           <tbody data-tags></tbody>
         </table>
       </section>
 
       <section class="panel">
-        <h2>Replay gain</h2>
-        <table>
-          <tbody data-replay></tbody>
-        </table>
-      </section>
-
-      <section class="panel">
         <h2>Embedded pictures</h2>
         <div class="pictures" data-pictures></div>
+      </section>
+
+      <section class="panel" data-download-section style="display: none;">
+        <h2>💾 Download Modified File</h2>
+        <p style="margin-bottom: 1rem; color: #cbd5f5;">
+          Your changes have been saved to the buffer. Download the modified audio file to test it in your media player.
+        </p>
+        <button class="download-button" data-download>⬇️ Download Modified File</button>
       </section>
 
       <section class="panel panel--note">

@@ -8,7 +8,7 @@
   "files": [
     "music-tag-native.linux-x64-gnu.node"
   ],
-  "description": "Music tag reader/writer in Node.js/Browser, powered by lofty and napi-rs",
+  "description": "Music tag reader / writter in Node.js / Browser, powered by napi-rs and lofty",
   "keywords": [
     "napi-rs",
     "NAPI",
@@ -17,18 +17,13 @@
     "node-addon",
     "node-addon-api",
     "music",
-    "metadata",
-    "audio",
-    "tag",
+    "tags",
+    "MP3",
+    "M4A",
+    "FLAC",
+    "WAV",
     "ID3",
-    "ID3v1",
-    "ID3v2",
-    "Vorbis",
-    "mp3",
-    "flac",
-    "wav",
-    "m4a",
-    "ogg"
+    "Vorbis"
   ],
   "license": "MIT",
   "engines": {

@@ -16,7 +16,15 @@
     "N-API",
     "Rust",
     "node-addon",
-    "node-addon-api"
+    "node-addon-api",
+    "music",
+    "tags",
+    "MP3",
+    "M4A",
+    "FLAC",
+    "WAV",
+    "ID3",
+    "Vorbis"
   ],
   "files": [
     "index.d.ts",
@@ -33,12 +41,9 @@
       "x86_64-unknown-linux-musl",
       "aarch64-unknown-linux-gnu",
       "i686-pc-windows-msvc",
-      "armv7-unknown-linux-gnueabihf",
       "aarch64-linux-android",
-      "x86_64-unknown-freebsd",
       "aarch64-unknown-linux-musl",
       "aarch64-pc-windows-msvc",
-      "armv7-linux-androideabi",
       "wasm32-wasi-preview1-threads"
     ]
   },
@@ -60,41 +65,23 @@
     "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
-    "version": "napi version"
+    "release": "pnpm build && pnpm test && bumpp"
   },
   "devDependencies": {
-    "@emnapi/core": "^1.5.0",
-    "@emnapi/runtime": "^1.5.0",
-    "@napi-rs/cli": "^3.2.0",
-    "@napi-rs/wasm-runtime": "^1.0.4",
-    "@oxc-node/core": "^0.0.32",
-    "@tybys/wasm-util": "^0.10.0",
-    "@types/node": "^24.10.0",
-    "emnapi": "^1.5.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.6",
-    "oxlint": "^1.14.0",
-    "prettier": "^3.6.2",
-    "typescript": "^5.9.2",
-    "vite": "^7.2.2",
-    "vitest": "^4.0.8"
+    "@emnapi/core": "^1.7.1",
+    "@emnapi/runtime": "^1.7.1",
+    "@napi-rs/cli": "^3.5.0",
+    "@napi-rs/wasm-runtime": "^1.1.0",
+    "@tybys/wasm-util": "^0.10.1",
+    "@types/node": "^24.10.1",
+    "bumpp": "^10.3.2",
+    "emnapi": "^1.7.1",
+    "oxlint": "^1.31.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7",
+    "vitest": "^4.0.15"
   },
-  "lint-staged": {
-    "*.@(js|ts|tsx)": [
-      "oxlint --fix"
-    ],
-    "*.@(js|ts|tsx|yml|yaml|md|json)": [
-      "prettier --write"
-    ]
-  },
-  "prettier": {
-    "printWidth": 120,
-    "semi": false,
-    "trailingComma": "all",
-    "singleQuote": true,
-    "arrowParens": "always"
-  },
-  "packageManager": "pnpm@10.20.0",
+  "packageManager": "pnpm@10.24.0",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"

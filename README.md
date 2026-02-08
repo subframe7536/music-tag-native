@@ -126,6 +126,7 @@ All properties can be read and written. Set to `null` to remove a tag.
 - `composer: string | null`
 - `comment: string | null`
 - `year: number | null`
+- `rating: number | null`
 - `trackNumber: number | null`
 - `trackTotal: number | null`
 - `discNumber: number | null`

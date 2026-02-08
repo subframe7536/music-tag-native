@@ -5,7 +5,13 @@ use lofty::{
     config::WriteOptions,
     file::{AudioFile, FileType, TaggedFile, TaggedFileExt},
     probe::Probe,
-    tag::{Accessor, ItemKey, Tag, TagType},
+    tag::{
+        items::{
+            popularimeter::{Popularimeter, StarRating},
+            Timestamp,
+        },
+        Accessor, ItemKey, Tag, TagType,
+    },
 };
 use napi_derive::napi;
 
@@ -29,6 +35,7 @@ struct MetaFileInner {
 const ERR_NO_TAG: &str = "File must contain at least one tag";
 const ERR_DISPOSED: &str = "File has been disposed";
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
+const ERR_INVALID_RATING: &str = "Rating should be integer in [1, 5]";
 
 impl MusicTagger {
     /// Get a reference to the internal file state
@@ -83,7 +90,7 @@ impl MusicTagger {
             Either::A(v) => {
                 tag.insert_text(item_key, v);
             }
-            Either::B(_) => tag.remove_key(&item_key),
+            Either::B(_) => tag.remove_key(item_key),
         })
     }
     fn set_gain_value<F>(&mut self, item_key: ItemKey, value: Either<f64, Null>, f: F) -> Result<()>
@@ -94,7 +101,7 @@ impl MusicTagger {
             Either::A(v) => {
                 tag.insert_text(item_key, f(v));
             }
-            Either::B(_) => tag.remove_key(&item_key),
+            Either::B(_) => tag.remove_key(item_key),
         })
     }
 }
@@ -412,15 +419,18 @@ impl MusicTagger {
     ///
     /// @throws If no file or buffer loaded
     #[napi(getter)]
-    pub fn year(&self) -> Result<Option<u32>> {
-        self.try_tag(|tag| tag.year())
+    pub fn year(&self) -> Result<Option<u16>> {
+        self.try_tag(|tag| tag.date().map(|d| d.year))
     }
 
     #[napi(setter)]
-    pub fn set_year(&mut self, year: Either<u32, Null>) -> Result<()> {
+    pub fn set_year(&mut self, year: Either<u16, Null>) -> Result<()> {
         self.try_tag_mut(|tag| match year {
-            Either::A(y) => tag.set_year(y),
-            _ => tag.remove_year(),
+            Either::A(y) => tag.set_date(Timestamp {
+                year: y,
+                ..Default::default()
+            }),
+            _ => tag.remove_date(),
         })
     }
 
@@ -527,7 +537,7 @@ impl MusicTagger {
     /// @note Album artist differs from track artist and represents the primary artist for the entire album.
     #[napi(getter)]
     pub fn album_artist(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::AlbumArtist).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::AlbumArtist).map(String::from))
     }
 
     #[napi(setter)]
@@ -540,7 +550,7 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn composer(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::Composer).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::Composer).map(String::from))
     }
 
     #[napi(setter)]
@@ -553,7 +563,7 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn conductor(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::Conductor).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::Conductor).map(String::from))
     }
 
     #[napi(setter)]
@@ -566,7 +576,7 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn lyricist(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::Lyricist).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::Lyricist).map(String::from))
     }
 
     #[napi(setter)]
@@ -579,7 +589,7 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn publisher(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::Publisher).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::Publisher).map(String::from))
     }
 
     #[napi(setter)]
@@ -592,7 +602,7 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn lyrics(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::Lyrics).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::Lyrics).map(String::from))
     }
 
     #[napi(setter)]
@@ -605,12 +615,55 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn copyright(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(&ItemKey::CopyrightMessage).map(String::from))
+        self.try_tag(|tag| tag.get_string(ItemKey::CopyrightMessage).map(String::from))
     }
 
     #[napi(setter)]
     pub fn set_copyright(&mut self, copyright: Either<String, Null>) -> Result<()> {
         self.set_text_field(ItemKey::CopyrightMessage, copyright)
+    }
+
+    /// User star ratings (integer in [1, 5]), or `null` if not set
+    ///
+    /// @throws If no file or buffer loaded
+    #[napi(getter)]
+    pub fn rating(&self) -> Result<Option<u8>> {
+        self.try_tag(|tag| match tag.ratings().next().map(|p| p.rating) {
+            Some(StarRating::One) => Some(1),
+            Some(StarRating::Two) => Some(2),
+            Some(StarRating::Three) => Some(3),
+            Some(StarRating::Four) => Some(4),
+            Some(StarRating::Five) => Some(5),
+            _ => None,
+        })
+    }
+
+    #[napi(setter)]
+    pub fn set_rating(&mut self, rating: Either<u8, Null>) -> Result<()> {
+        let star_rating = match rating {
+            Either::A(value) => Some(
+                match value {
+                    1 => Some(StarRating::One),
+                    2 => Some(StarRating::Two),
+                    3 => Some(StarRating::Three),
+                    4 => Some(StarRating::Four),
+                    5 => Some(StarRating::Five),
+                    _ => None,
+                }
+                .ok_or_else(|| Error::new(Status::InvalidArg, ERR_INVALID_RATING))?,
+            ),
+            Either::B(_) => None,
+        };
+
+        self.try_tag_mut(move |tag| match star_rating {
+            Some(value) => {
+                tag.insert_text(
+                    ItemKey::Popularimeter,
+                    Popularimeter::custom("", value, 0).to_string(),
+                );
+            }
+            None => tag.remove_key(ItemKey::Popularimeter),
+        })
     }
 
     /// Track replay gain in dB, or `null` if not set
@@ -620,7 +673,7 @@ impl MusicTagger {
     /// @note Replay gain is used to normalize playback volume across different tracks.
     #[napi(getter)]
     pub fn track_replay_gain(&self) -> Result<Option<f64>> {
-        self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainTrackGain)?))
+        self.try_tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainTrackGain)?))
     }
 
     #[napi(setter)]
@@ -639,7 +692,7 @@ impl MusicTagger {
     /// @note Replay peak represents the maximum amplitude level in the track.
     #[napi(getter)]
     pub fn track_replay_peak(&self) -> Result<Option<f64>> {
-        self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainTrackPeak)?))
+        self.try_tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainTrackPeak)?))
     }
 
     #[napi(setter)]
@@ -658,7 +711,7 @@ impl MusicTagger {
     /// @note Album replay gain normalizes playback volume across different albums.
     #[napi(getter)]
     pub fn album_replay_gain(&self) -> Result<Option<f64>> {
-        self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainAlbumGain)?))
+        self.try_tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainAlbumGain)?))
     }
 
     #[napi(setter)]
@@ -677,7 +730,7 @@ impl MusicTagger {
     /// @note Album replay peak represents the maximum amplitude level in the album.
     #[napi(getter)]
     pub fn album_replay_peak(&self) -> Result<Option<f64>> {
-        self.try_tag(|tag| parse_replaygain_value(tag.get_string(&ItemKey::ReplayGainAlbumPeak)?))
+        self.try_tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainAlbumPeak)?))
     }
 
     #[napi(setter)]

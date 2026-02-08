@@ -8,7 +8,7 @@ version = "0.0.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-lofty = "0.22.4"
+lofty = "0.23"
 napi = "3.0.0"
 napi-derive = "3.0.0"
 

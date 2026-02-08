@@ -50,13 +50,16 @@ pub fn from_lofty_picture(pic: &Picture) -> MetaPicture {
 }
 
 pub fn to_lofty_picture(pic: &MetaPicture) -> Picture {
-    Picture::new_unchecked(
-        PictureType::from_ape_key(&pic.cover_type.as_str()),
-        match &pic.mime_type {
-            Some(mime_str) => Some(MimeType::from_str(mime_str.as_str())),
-            None => None,
-        },
-        pic.description.clone(),
-        pic.data.to_vec(),
-    )
+    let mut pic_builder = Picture::unchecked(pic.data.to_vec())
+        .pic_type(PictureType::from_ape_key(&pic.cover_type.as_str()));
+
+    if let Some(mime_str) = pic.mime_type.as_deref() {
+        pic_builder = pic_builder.mime_type(MimeType::from_str(mime_str));
+    }
+
+    if let Some(desc) = pic.description.as_ref() {
+        pic_builder = pic_builder.description(desc.clone());
+    }
+
+    pic_builder.build()
 }

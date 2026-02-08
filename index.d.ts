@@ -253,6 +253,13 @@ export declare class MusicTagger {
   get copyright(): string | null
   set copyright(copyright: string | null)
   /**
+   * User star ratings (integer in [1, 5]), or `null` if not set
+   *
+   * @throws If no file or buffer loaded
+   */
+  get rating(): number | null
+  set rating(rating: number | null)
+  /**
    * Track replay gain in dB, or `null` if not set
    *
    * @throws If no file or buffer loaded

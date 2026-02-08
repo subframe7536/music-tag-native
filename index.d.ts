@@ -55,12 +55,16 @@ export declare class MusicTagger {
    */
   isDisposed(): boolean
   /**
-   * Save metadata changes back to the internal buffer
+   * Save metadata changes to buffer, existing path, or a custom path
+   *
+   * @param path Optional output file path (Node.js only). If provided,
+   * saves to this path for this call.
    *
    * @throws If no file or buffer loaded
+   * @throws If custom path is provided in WebAssembly environments
    * @throws If saving fails due to file format constraints
    */
-  save(): void
+  save(path?: string | undefined | null): void
   /**
    * Current audio file buffer as a `Uint8Array`
    *

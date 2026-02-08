@@ -206,14 +206,20 @@ impl MusicTagger {
         self.inner.is_none()
     }
 
-    /// Save metadata changes back to the internal buffer
+    /// Save metadata changes to buffer, existing path, or a custom path
+    ///
+    /// @param path Optional output file path (Node.js only). If provided,
+    /// saves to this path for this call.
     ///
     /// @throws If no file or buffer loaded
+    /// @throws If custom path is provided in WebAssembly environments
     /// @throws If saving fails due to file format constraints
     #[napi]
-    pub fn save(&mut self) -> Result<()> {
+    pub fn save(&mut self, path: Option<String>) -> Result<()> {
         let inner = self.inner_mut()?;
-        if inner.buffer.len() > 0 {
+        let has_custom_path = path.is_some();
+
+        if !inner.buffer.is_empty() {
             let mut cursor = Cursor::new(&mut inner.buffer);
             inner
                 .file
@@ -223,16 +229,54 @@ impl MusicTagger {
                         Status::GenericFailure,
                         format!("Failed to save buffer: {}", e),
                     )
-                })
-        } else if inner.path.is_some() {
-            let p = inner.path.as_ref().unwrap();
+                })?;
+
+            if let Some(custom_path) = path {
+                if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                }
+
+                std::fs::write(&custom_path, &inner.buffer).map_err(|e| {
+                    Error::new(
+                        Status::GenericFailure,
+                        format!("Failed writing to custom path '{}': {}", custom_path, e),
+                    )
+                })?;
+            }
+
+            return Ok(());
+        }
+
+        if has_custom_path && cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+            return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+        }
+
+        let target_path = path.or_else(|| inner.path.clone());
+
+        if let Some(target_path) = target_path {
+            if has_custom_path {
+                if let Some(source_path) = inner.path.as_deref() {
+                    if source_path != target_path.as_str() {
+                        std::fs::copy(source_path, &target_path).map_err(|e| {
+                            Error::new(
+                                Status::GenericFailure,
+                                format!(
+                                    "Failed copying '{}' to custom path '{}': {}",
+                                    source_path, target_path, e
+                                ),
+                            )
+                        })?;
+                    }
+                }
+            }
+
             inner
                 .file
-                .save_to_path(p, WriteOptions::default())
+                .save_to_path(&target_path, WriteOptions::default())
                 .map_err(|e| {
                     Error::new(
                         Status::GenericFailure,
-                        format!("Failed saving to existing file '{}': {}", p, e),
+                        format!("Failed saving to file '{}': {}", target_path, e),
                     )
                 })
         } else {

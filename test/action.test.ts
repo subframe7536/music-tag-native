@@ -1,7 +1,8 @@
 // oxlint-disable no-unused-expressions
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { readFileSync } from 'fs'
+import { copyFileSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
+import { tmpdir } from 'os'
 import { MusicTagger } from '../index'
 import { base } from './const'
 
@@ -139,19 +140,51 @@ describe('MusicTagger', () => {
 
   describe.skipIf(isWasi)('savePath', () => {
     it('should save to original path', () => {
-      const path = join(base, 'mp3.mp3')
-      tagger.loadPath(path)
-      tagger.title = 'Saved Title'
+      const sourcePath = join(base, 'mp3.mp3')
+      const path = join(tmpdir(), `music-tag-native-save-original-${Date.now()}.mp3`)
+      copyFileSync(sourcePath, path)
 
-      expect(() => {
-        tagger.save()
-      }).not.toThrow()
+      const verifyTagger = new MusicTagger()
+      try {
+        tagger.loadPath(path)
+        tagger.title = 'Saved Title'
+
+        expect(() => {
+          tagger.save()
+        }).not.toThrow()
+
+        verifyTagger.loadPath(path)
+        expect(verifyTagger.title).toBe('Saved Title')
+      } finally {
+        verifyTagger.dispose()
+        rmSync(path, { force: true })
+      }
     })
 
     it('should throw error when disposed', () => {
       expect(() => {
         tagger.save()
       }).toThrow()
+    })
+
+    it('should save to custom path', () => {
+      const path = join(base, 'mp3.mp3')
+      const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
+      tagger.loadPath(path)
+      tagger.title = 'Saved Custom Path Title'
+
+      expect(() => {
+        tagger.save(targetPath)
+      }).not.toThrow()
+
+      const newTagger = new MusicTagger()
+      try {
+        newTagger.loadPath(targetPath)
+        expect(newTagger.title).toBe('Saved Custom Path Title')
+      } finally {
+        newTagger.dispose()
+        rmSync(targetPath, { force: true })
+      }
     })
   })
 

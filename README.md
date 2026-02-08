@@ -60,6 +60,9 @@ tagger.albumArtist = null
 // Save changes back to file
 tagger.save()
 
+// Or save to a different file path
+tagger.save('/path/to/output.mp3')
+
 // Clean up resources
 tagger.dispose()
 ```
@@ -108,7 +111,7 @@ tagger.dispose()
 
 #### Saving Changes
 
-- `save(): Uint8Array | undefined` - Save changes. Returns buffer in browser, undefined in Node.js (saves to original path)
+- `save(path?: string | null): Uint8Array | undefined` - Save changes. In Node.js, saves to original path by default, or to `path` when provided. In browser/wasm, `path` is not supported.
 
 #### Resource Management
 

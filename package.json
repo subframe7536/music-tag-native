@@ -1,6 +1,6 @@
 {
   "name": "music-tag-native",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Music tag reader / writter in Node.js / Browser, powered by napi-rs and lofty",
   "main": "index.js",
   "types": "index.d.ts",

@@ -219,8 +219,12 @@ impl MusicTagger {
         let inner = self.inner_mut()?;
         let has_custom_path = path.is_some();
 
+        // === BRANCH 1: Buffer Mode ===
         if !inner.buffer.is_empty() {
-            let mut cursor = Cursor::new(&mut inner.buffer);
+            // transactional save: work on a clone to prevent corruption
+            let mut scratch_buffer = inner.buffer.clone();
+            let mut cursor = Cursor::new(&mut scratch_buffer);
+
             inner
                 .file
                 .save_to(&mut cursor, WriteOptions::default())
@@ -231,6 +235,10 @@ impl MusicTagger {
                     )
                 })?;
 
+            // Commit changes
+            inner.buffer = scratch_buffer;
+
+            // Handle export to file (Node.js only)
             if let Some(custom_path) = path {
                 if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
                     return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
@@ -247,6 +255,9 @@ impl MusicTagger {
             return Ok(());
         }
 
+        // === BRANCH 2: Path Mode ===
+
+        // Check WASM restriction for path operations
         if has_custom_path && cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
             return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
         }
@@ -254,6 +265,7 @@ impl MusicTagger {
         let target_path = path.or_else(|| inner.path.clone());
 
         if let Some(target_path) = target_path {
+            // "Save As" logic: Copy source to target first if they are different
             if has_custom_path {
                 if let Some(source_path) = inner.path.as_deref() {
                     if source_path != target_path.as_str() {
@@ -261,7 +273,7 @@ impl MusicTagger {
                             Error::new(
                                 Status::GenericFailure,
                                 format!(
-                                    "Failed copying '{}' to custom path '{}': {}",
+                                    "Failed saving '{}' to custom path '{}': {}",
                                     source_path, target_path, e
                                 ),
                             )
@@ -270,6 +282,7 @@ impl MusicTagger {
                 }
             }
 
+            // Apply tags to the target file
             inner
                 .file
                 .save_to_path(&target_path, WriteOptions::default())
@@ -357,7 +370,14 @@ impl MusicTagger {
             return Ok(None);
         }
 
-        let file_size_bytes = self.inner()?.buffer.len() as f64;
+        // Inside bit_rate()
+        let file_size_bytes = if let Some(path) = &self.inner()?.path {
+            std::fs::metadata(path)
+                .map(|m| m.len() as f64)
+                .unwrap_or(0.0)
+        } else {
+            self.inner()?.buffer.len() as f64
+        };
         let bitrate_kbps = ((file_size_bytes * 8.0) / (duration_secs * 1000.0)).round() as u32;
 
         Ok((8..=100_00).contains(&bitrate_kbps).then_some(bitrate_kbps))

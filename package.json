@@ -52,7 +52,8 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "artifacts": "napi artifacts",
@@ -61,7 +62,7 @@
     "build:wasm": "napi build --release --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "pnpm build:debug && vitest run",
     "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",

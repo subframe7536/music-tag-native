@@ -250,7 +250,7 @@ jobs:
         run: ls -R .
         shell: bash
       - name: Test bindings
-        run: pnpm test
+        run: pnpm exec vitest run
   test-linux-binding:
     name: Test ${{ matrix.target }} - node@${{ matrix.node }}
     needs:
@@ -322,7 +322,7 @@ jobs:
             -w ${{ github.workspace }} \
             --platform ${{ steps.docker.outputs.PLATFORM }} \
             ${{ steps.docker.outputs.IMAGE }} \
-            npm run test
+            ./node_modules/.bin/vitest run
   test-wasi:
     name: Test WASI target
     needs:
@@ -348,7 +348,7 @@ jobs:
         run: ls -R .
         shell: bash
       - name: Test bindings
-        run: pnpm test
+        run: pnpm exec vitest run
         env:
           NAPI_RS_FORCE_WASI: 1
   publish:
@@ -372,6 +372,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
         run: pnpm install
       - name: Download all artifacts
@@ -387,15 +388,15 @@ jobs:
         shell: bash
       - name: Publish using OIDC
         run: |
-          npm config set provenance true
           if git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
           then
-            npm publish --access public
+            npm publish
           elif git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
           then
-            npm publish --tag next --access public
+            npm publish --tag next
           else
             echo "Not a release, skipping publish"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

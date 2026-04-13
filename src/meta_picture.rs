@@ -63,3 +63,125 @@ pub fn to_lofty_picture(pic: &MetaPicture) -> Picture {
 
     pic_builder.build()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_picture(data: Vec<u8>, pic_type: PictureType, mime: MimeType, desc: Option<&str>) -> Picture {
+        let mut builder = Picture::unchecked(data).pic_type(pic_type).mime_type(mime);
+        if let Some(d) = desc {
+            builder = builder.description(d.to_string());
+        }
+        builder.build()
+    }
+
+    #[test]
+    fn test_from_lofty_picture_basic() {
+        let data = vec![1u8, 2, 3, 4, 5];
+        let pic = make_picture(data.clone(), PictureType::CoverFront, MimeType::Jpeg, None);
+
+        let meta = from_lofty_picture(&pic);
+
+        assert_eq!(meta.mime_type.as_deref(), Some("image/jpeg"));
+        assert_eq!(meta.data.as_ref(), data.as_slice());
+        assert_eq!(meta.description, None);
+        // Verify the cover_type is the APE key for CoverFront
+        assert_eq!(
+            meta.cover_type,
+            PictureType::CoverFront.as_ape_key().expect("CoverFront should have APE key")
+        );
+    }
+
+    #[test]
+    fn test_from_lofty_picture_with_description() {
+        let data = vec![10u8, 20, 30];
+        let pic = make_picture(data.clone(), PictureType::CoverFront, MimeType::Png, Some("Album Art"));
+
+        let meta = from_lofty_picture(&pic);
+
+        assert_eq!(meta.mime_type.as_deref(), Some("image/png"));
+        assert_eq!(meta.description.as_deref(), Some("Album Art"));
+        assert_eq!(meta.data.as_ref(), data.as_slice());
+    }
+
+    #[test]
+    fn test_from_lofty_picture_various_mime_types() {
+        let data = vec![0u8; 16];
+
+        let jpeg = make_picture(data.clone(), PictureType::CoverFront, MimeType::Jpeg, None);
+        assert_eq!(from_lofty_picture(&jpeg).mime_type.as_deref(), Some("image/jpeg"));
+
+        let png = make_picture(data.clone(), PictureType::CoverFront, MimeType::Png, None);
+        assert_eq!(from_lofty_picture(&png).mime_type.as_deref(), Some("image/png"));
+
+        let gif = make_picture(data.clone(), PictureType::CoverFront, MimeType::Gif, None);
+        assert_eq!(from_lofty_picture(&gif).mime_type.as_deref(), Some("image/gif"));
+    }
+
+    #[test]
+    fn test_from_lofty_picture_slice_empty() {
+        let result = from_lofty_picture_slice(&[]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_from_lofty_picture_slice_single() {
+        let pic = make_picture(vec![1u8, 2, 3], PictureType::CoverFront, MimeType::Jpeg, None);
+        let result = from_lofty_picture_slice(&[pic]);
+        assert!(result.is_some());
+        let pics = result.unwrap();
+        assert_eq!(pics.len(), 1);
+        assert_eq!(pics[0].mime_type.as_deref(), Some("image/jpeg"));
+    }
+
+    #[test]
+    fn test_from_lofty_picture_slice_multiple() {
+        let pic1 = make_picture(vec![1u8, 2], PictureType::CoverFront, MimeType::Jpeg, None);
+        let pic2 = make_picture(vec![3u8, 4], PictureType::CoverBack, MimeType::Png, Some("Back"));
+        let result = from_lofty_picture_slice(&[pic1, pic2]);
+        assert!(result.is_some());
+        let pics = result.unwrap();
+        assert_eq!(pics.len(), 2);
+        assert_eq!(pics[0].mime_type.as_deref(), Some("image/jpeg"));
+        assert_eq!(pics[1].mime_type.as_deref(), Some("image/png"));
+        assert_eq!(pics[1].description.as_deref(), Some("Back"));
+    }
+
+    #[test]
+    fn test_to_lofty_picture_round_trip() {
+        let data = vec![1u8, 2, 3, 4, 5];
+        let original = make_picture(data.clone(), PictureType::CoverFront, MimeType::Jpeg, Some("Cover Art"));
+        let meta = from_lofty_picture(&original);
+        let converted = to_lofty_picture(&meta);
+
+        assert_eq!(converted.data(), data.as_slice());
+        assert_eq!(converted.mime_type().map(|m| m.as_str()), Some("image/jpeg"));
+        assert_eq!(converted.description(), Some("Cover Art"));
+    }
+
+    #[test]
+    fn test_to_lofty_picture_no_mime() {
+        let meta = MetaPicture {
+            cover_type: "Cover".to_string(),
+            mime_type: None,
+            description: None,
+            data: vec![1u8, 2, 3].into(),
+        };
+        let pic = to_lofty_picture(&meta);
+        assert_eq!(pic.data(), &[1u8, 2, 3]);
+    }
+
+    #[test]
+    fn test_to_lofty_picture_preserves_data() {
+        let data: Vec<u8> = (0..=255u8).collect();
+        let meta = MetaPicture {
+            cover_type: "Cover".to_string(),
+            mime_type: Some("image/jpeg".to_string()),
+            description: Some("Full range".to_string()),
+            data: data.clone().into(),
+        };
+        let pic = to_lofty_picture(&meta);
+        assert_eq!(pic.data(), data.as_slice());
+    }
+}

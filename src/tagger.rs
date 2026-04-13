@@ -668,7 +668,7 @@ impl MusicTagger {
     pub fn lyrics(&self) -> Result<Option<String>> {
         self.try_tag(|tag| match tag.tag_type() {
             TagType::Id3v2 => tag.get_string(ItemKey::UnsyncLyrics).map(String::from),
-            _ => tag.get_string(ItemKey::Lyricist).map(String::from),
+            _ => tag.get_string(ItemKey::Lyrics).map(String::from),
         })
     }
 
@@ -858,3 +858,232 @@ impl MusicTagger {
 //         Ok(())
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::MusicTagger;
+    use napi::bindgen_prelude::Either;
+    use std::path::PathBuf;
+
+    fn samples_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples")
+    }
+
+    fn tagger_from_path(name: &str) -> MusicTagger {
+        let path = samples_dir().join(name).to_str().unwrap().to_string();
+        let mut t = MusicTagger::new();
+        t.load_path(path).expect("load_path failed");
+        t
+    }
+
+    fn tagger_from_buffer(name: &str) -> MusicTagger {
+        let data: Vec<u8> = std::fs::read(samples_dir().join(name)).expect("read failed");
+        let mut t = MusicTagger::new();
+        t.load_buffer(data.into()).expect("load_buffer failed");
+        t
+    }
+
+    // ── load from path ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_mp3_from_path() {
+        let t = tagger_from_path("mp3.mp3");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+        assert!(t.duration().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_load_flac_from_path() {
+        let t = tagger_from_path("flac.flac");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+        assert!(t.duration().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_load_ogg_from_path() {
+        let t = tagger_from_path("ogg.opus");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+        assert!(t.duration().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_load_wav_from_path() {
+        let t = tagger_from_path("wav.wav");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+        assert!(t.duration().unwrap() > 0);
+    }
+
+    // ── load from buffer ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_mp3_from_buffer() {
+        let t = tagger_from_buffer("mp3.mp3");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+    }
+
+    #[test]
+    fn test_load_flac_from_buffer() {
+        let t = tagger_from_buffer("flac.flac");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+    }
+
+    #[test]
+    fn test_load_ogg_from_buffer() {
+        let t = tagger_from_buffer("ogg.opus");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+    }
+
+    #[test]
+    fn test_load_wav_from_buffer() {
+        let t = tagger_from_buffer("wav.wav");
+        assert!(!t.is_disposed());
+        assert!(t.tag_type().unwrap().is_some());
+    }
+
+    // ── audio properties ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_properties() {
+        let t = tagger_from_path("mp3.mp3");
+        // MP3 is lossy: quality is HQ, no bit depth
+        assert_eq!(t.quality().unwrap(), "HQ");
+        assert_eq!(t.bit_depth().unwrap(), None);
+        assert!(t.sample_rate().unwrap().unwrap_or(0) > 0);
+        assert!(t.channels().unwrap().unwrap_or(0) > 0);
+        assert!(t.bit_rate().unwrap().is_some());
+    }
+
+    #[test]
+    fn test_flac_properties() {
+        let t = tagger_from_path("flac.flac");
+        // FLAC is lossless: should have bit depth
+        assert!(t.bit_depth().unwrap().unwrap_or(0) > 0);
+        assert!(t.sample_rate().unwrap().unwrap_or(0) > 0);
+        assert!(t.channels().unwrap().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn test_ogg_properties() {
+        let t = tagger_from_path("ogg.opus");
+        assert!(t.sample_rate().unwrap().unwrap_or(0) > 0);
+        assert!(t.channels().unwrap().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn test_wav_properties() {
+        let t = tagger_from_path("wav.wav");
+        // WAV is lossless: should have bit depth
+        assert!(t.bit_depth().unwrap().unwrap_or(0) > 0);
+        assert!(t.sample_rate().unwrap().unwrap_or(0) > 0);
+        assert!(t.channels().unwrap().unwrap_or(0) > 0);
+    }
+
+    // ── tag type ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_has_id3_tag() {
+        let t = tagger_from_path("mp3.mp3");
+        let tag_type = t.tag_type().unwrap().unwrap();
+        assert!(
+            tag_type == "ID3V1" || tag_type == "ID3V2" || tag_type == "APE",
+            "unexpected tag type: {tag_type}"
+        );
+    }
+
+    #[test]
+    fn test_flac_has_vorbis_tag() {
+        let t = tagger_from_path("flac.flac");
+        assert_eq!(t.tag_type().unwrap().as_deref(), Some("VORBIS"));
+    }
+
+    #[test]
+    fn test_ogg_has_vorbis_tag() {
+        let t = tagger_from_path("ogg.opus");
+        assert_eq!(t.tag_type().unwrap().as_deref(), Some("VORBIS"));
+    }
+
+    #[test]
+    fn test_wav_has_riff_or_id3_tag() {
+        let t = tagger_from_path("wav.wav");
+        let tag_type = t.tag_type().unwrap().unwrap();
+        assert!(
+            tag_type == "RIFF" || tag_type == "ID3V2",
+            "unexpected tag type: {tag_type}"
+        );
+    }
+
+    // ── metadata read ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_title_read() {
+        let t = tagger_from_path("mp3.mp3");
+        // title can be Some or None, but reading must not panic
+        let _ = t.title().unwrap();
+    }
+
+    #[test]
+    fn test_flac_title_read() {
+        let t = tagger_from_path("flac.flac");
+        let _ = t.title().unwrap();
+    }
+
+    #[test]
+    fn test_ogg_title_read() {
+        let t = tagger_from_path("ogg.opus");
+        let _ = t.title().unwrap();
+    }
+
+    #[test]
+    fn test_wav_title_read() {
+        let t = tagger_from_path("wav.wav");
+        let _ = t.title().unwrap();
+    }
+
+    // ── buffer round-trip save ──────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_buffer_save_round_trip() {
+        let mut t = tagger_from_buffer("mp3.mp3");
+        t.set_title(Either::A("Rust Test Title".to_string())).unwrap();
+        t.save(None).unwrap();
+
+        let saved_buf = t.buffer().unwrap();
+
+        let mut t2 = MusicTagger::new();
+        t2.load_buffer(saved_buf.to_vec().into()).unwrap();
+        assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
+    }
+
+    #[test]
+    fn test_flac_buffer_save_round_trip() {
+        let mut t = tagger_from_buffer("flac.flac");
+        t.set_title(Either::A("FLAC Rust Title".to_string())).unwrap();
+        t.save(None).unwrap();
+
+        let saved_buf = t.buffer().unwrap();
+
+        let mut t2 = MusicTagger::new();
+        t2.load_buffer(saved_buf.to_vec().into()).unwrap();
+        assert_eq!(t2.title().unwrap().as_deref(), Some("FLAC Rust Title"));
+    }
+
+    #[test]
+    fn test_ogg_buffer_save_round_trip() {
+        let mut t = tagger_from_buffer("ogg.opus");
+        t.set_title(Either::A("OGG Rust Title".to_string())).unwrap();
+        t.save(None).unwrap();
+
+        let saved_buf = t.buffer().unwrap();
+
+        let mut t2 = MusicTagger::new();
+        t2.load_buffer(saved_buf.to_vec().into()).unwrap();
+        assert_eq!(t2.title().unwrap().as_deref(), Some("OGG Rust Title"));
+    }
+}

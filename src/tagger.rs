@@ -666,12 +666,18 @@ impl MusicTagger {
     /// @throws If no file or buffer loaded
     #[napi(getter)]
     pub fn lyrics(&self) -> Result<Option<String>> {
-        self.try_tag(|tag| tag.get_string(ItemKey::Lyrics).map(String::from))
+        self.try_tag(|tag| match tag.tag_type() {
+            TagType::Id3v2 => tag.get_string(ItemKey::UnsyncLyrics).map(String::from),
+            _ => tag.get_string(ItemKey::Lyricist).map(String::from),
+        })
     }
 
     #[napi(setter)]
     pub fn set_lyrics(&mut self, lyrics: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::Lyrics, lyrics)
+        match self.try_tag(|tag| Some(tag.tag_type()))? {
+            Some(TagType::Id3v2) => self.set_text_field(ItemKey::UnsyncLyrics, lyrics),
+            _ => self.set_text_field(ItemKey::Lyrics, lyrics),
+        }
     }
 
     /// Copyright information, or `null` if not set

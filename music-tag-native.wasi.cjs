@@ -39,7 +39,7 @@ if (__nodeFs.existsSync(__wasmDebugFilePath)) {
   __wasmFilePath = __wasmDebugFilePath
 } else if (!__nodeFs.existsSync(__wasmFilePath)) {
   try {
-    __wasmFilePath = require.resolve('music-tag-native-wasm32-wasi/music-tag-native.wasm32-wasi.wasm')
+    __wasmFilePath = __nodePath.resolve('music-tag-native-wasm32-wasi')
   } catch {
     throw new Error('Cannot find music-tag-native.wasm32-wasi.wasm file, and music-tag-native-wasm32-wasi package is not installed.')
   }

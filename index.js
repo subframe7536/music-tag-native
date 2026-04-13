@@ -536,17 +536,13 @@ if (!nativeBinding || process.env.NAPI_RS_FORCE_WASI) {
       wasiBindingError = err
     }
   }
-  if (!nativeBinding || process.env.NAPI_RS_FORCE_WASI) {
+  if (!nativeBinding) {
     try {
       wasiBinding = require('music-tag-native-wasm32-wasi')
       nativeBinding = wasiBinding
     } catch (err) {
       if (process.env.NAPI_RS_FORCE_WASI) {
-        if (!wasiBindingError) {
-          wasiBindingError = err
-        } else {
-          wasiBindingError.cause = err
-        }
+        wasiBindingError.cause = err
         loadErrors.push(err)
       }
     }

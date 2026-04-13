@@ -1051,7 +1051,8 @@ mod tests {
     #[test]
     fn test_mp3_buffer_save_round_trip() {
         let mut t = tagger_from_buffer("mp3.mp3");
-        t.set_title(Either::A("Rust Test Title".to_string())).unwrap();
+        t.set_title(Either::A("Rust Test Title".to_string()))
+            .unwrap();
         t.save(None).unwrap();
 
         let saved_buf = t.buffer().unwrap();
@@ -1064,7 +1065,8 @@ mod tests {
     #[test]
     fn test_flac_buffer_save_round_trip() {
         let mut t = tagger_from_buffer("flac.flac");
-        t.set_title(Either::A("FLAC Rust Title".to_string())).unwrap();
+        t.set_title(Either::A("FLAC Rust Title".to_string()))
+            .unwrap();
         t.save(None).unwrap();
 
         let saved_buf = t.buffer().unwrap();
@@ -1077,7 +1079,8 @@ mod tests {
     #[test]
     fn test_ogg_buffer_save_round_trip() {
         let mut t = tagger_from_buffer("ogg.opus");
-        t.set_title(Either::A("OGG Rust Title".to_string())).unwrap();
+        t.set_title(Either::A("OGG Rust Title".to_string()))
+            .unwrap();
         t.save(None).unwrap();
 
         let saved_buf = t.buffer().unwrap();

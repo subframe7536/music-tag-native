@@ -668,7 +668,7 @@ impl MusicTagger {
     pub fn lyrics(&self) -> Result<Option<String>> {
         self.try_tag(|tag| match tag.tag_type() {
             TagType::Id3v2 => tag.get_string(ItemKey::UnsyncLyrics).map(String::from),
-            _ => tag.get_string(ItemKey::Lyricist).map(String::from),
+            _ => tag.get_string(ItemKey::Lyrics).map(String::from),
         })
     }
 

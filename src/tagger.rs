@@ -858,3 +858,306 @@ impl MusicTagger {
 //         Ok(())
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use lofty::{
+        file::{AudioFile, TaggedFileExt},
+        probe::Probe,
+        tag::Accessor,
+    };
+    use std::io::Cursor;
+    use std::path::PathBuf;
+
+    fn samples_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples")
+    }
+
+    fn sample_path(name: &str) -> PathBuf {
+        samples_dir().join(name)
+    }
+
+    fn load_file_from_path(name: &str) -> lofty::file::TaggedFile {
+        Probe::open(sample_path(name))
+            .expect("Failed to open file")
+            .guess_file_type()
+            .expect("Failed to guess file type")
+            .read()
+            .expect("Failed to read file")
+    }
+
+    fn load_file_from_buffer(name: &str) -> lofty::file::TaggedFile {
+        let data = std::fs::read(sample_path(name)).expect("Failed to read file");
+        Probe::new(Cursor::new(&data))
+            .guess_file_type()
+            .expect("Failed to guess file type")
+            .read()
+            .expect("Failed to parse file")
+    }
+
+    // ── load from path ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_mp3_from_path() {
+        let tagged = load_file_from_path("mp3.mp3");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+        assert!(tagged.properties().duration().as_millis() > 0);
+    }
+
+    #[test]
+    fn test_load_flac_from_path() {
+        let tagged = load_file_from_path("flac.flac");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+        assert!(tagged.properties().duration().as_millis() > 0);
+    }
+
+    #[test]
+    fn test_load_ogg_from_path() {
+        let tagged = load_file_from_path("ogg.opus");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+        assert!(tagged.properties().duration().as_millis() > 0);
+    }
+
+    #[test]
+    fn test_load_wav_from_path() {
+        let tagged = load_file_from_path("wav.wav");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+        assert!(tagged.properties().duration().as_millis() > 0);
+    }
+
+    // ── load from buffer ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_mp3_from_buffer() {
+        let tagged = load_file_from_buffer("mp3.mp3");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+    }
+
+    #[test]
+    fn test_load_flac_from_buffer() {
+        let tagged = load_file_from_buffer("flac.flac");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+    }
+
+    #[test]
+    fn test_load_ogg_from_buffer() {
+        let tagged = load_file_from_buffer("ogg.opus");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+    }
+
+    #[test]
+    fn test_load_wav_from_buffer() {
+        let tagged = load_file_from_buffer("wav.wav");
+        assert!(tagged.primary_tag().is_some() || tagged.first_tag().is_some());
+    }
+
+    // ── audio properties ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_properties() {
+        let tagged = load_file_from_path("mp3.mp3");
+        let props = tagged.properties();
+        // MP3 is a lossy format: no bit depth expected
+        assert_eq!(props.bit_depth(), None);
+        // Should have a positive sample rate
+        assert!(props.sample_rate().unwrap_or(0) > 0);
+        // Should have channels
+        assert!(props.channels().unwrap_or(0) > 0);
+        // Should have a bitrate (lossy)
+        assert!(props.audio_bitrate().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn test_flac_properties() {
+        let tagged = load_file_from_path("flac.flac");
+        let props = tagged.properties();
+        // FLAC is lossless: should have bit depth
+        assert!(props.bit_depth().unwrap_or(0) > 0);
+        assert!(props.sample_rate().unwrap_or(0) > 0);
+        assert!(props.channels().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn test_ogg_properties() {
+        let tagged = load_file_from_path("ogg.opus");
+        let props = tagged.properties();
+        assert!(props.sample_rate().unwrap_or(0) > 0);
+        assert!(props.channels().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn test_wav_properties() {
+        let tagged = load_file_from_path("wav.wav");
+        let props = tagged.properties();
+        // WAV is lossless: should have bit depth
+        assert!(props.bit_depth().unwrap_or(0) > 0);
+        assert!(props.sample_rate().unwrap_or(0) > 0);
+        assert!(props.channels().unwrap_or(0) > 0);
+    }
+
+    // ── tag type ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_has_id3_tag() {
+        let tagged = load_file_from_path("mp3.mp3");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        assert!(tag.is_some());
+        let tag_type = tag.unwrap().tag_type();
+        assert!(matches!(
+            tag_type,
+            lofty::tag::TagType::Id3v1 | lofty::tag::TagType::Id3v2 | lofty::tag::TagType::Ape
+        ));
+    }
+
+    #[test]
+    fn test_flac_has_vorbis_tag() {
+        let tagged = load_file_from_path("flac.flac");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        assert!(tag.is_some());
+        assert_eq!(tag.unwrap().tag_type(), lofty::tag::TagType::VorbisComments);
+    }
+
+    #[test]
+    fn test_ogg_has_vorbis_tag() {
+        let tagged = load_file_from_path("ogg.opus");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        assert!(tag.is_some());
+        assert_eq!(tag.unwrap().tag_type(), lofty::tag::TagType::VorbisComments);
+    }
+
+    #[test]
+    fn test_wav_has_riff_or_id3_tag() {
+        let tagged = load_file_from_path("wav.wav");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        assert!(tag.is_some());
+        let tag_type = tag.unwrap().tag_type();
+        assert!(matches!(
+            tag_type,
+            lofty::tag::TagType::RiffInfo | lofty::tag::TagType::Id3v2
+        ));
+    }
+
+    // ── metadata read/write round-trip ─────────────────────────────────────
+
+    #[test]
+    fn test_mp3_title_read() {
+        let tagged = load_file_from_path("mp3.mp3");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag()).unwrap();
+        // title can be Some or None, but reading must not panic
+        let _title = tag.title();
+    }
+
+    #[test]
+    fn test_flac_title_read() {
+        let tagged = load_file_from_path("flac.flac");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag()).unwrap();
+        let _title = tag.title();
+    }
+
+    #[test]
+    fn test_ogg_title_read() {
+        let tagged = load_file_from_path("ogg.opus");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag()).unwrap();
+        let _title = tag.title();
+    }
+
+    #[test]
+    fn test_wav_title_read() {
+        let tagged = load_file_from_path("wav.wav");
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag()).unwrap();
+        let _title = tag.title();
+    }
+
+    // ── buffer round-trip save ──────────────────────────────────────────────
+
+    #[test]
+    fn test_mp3_buffer_save_round_trip() {
+        use lofty::config::WriteOptions;
+
+        let data = std::fs::read(sample_path("mp3.mp3")).unwrap();
+        let mut tagged = Probe::new(Cursor::new(&data))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+
+        if let Some(tag) = tagged.primary_tag_mut() {
+            tag.set_title("Rust Test Title".to_string());
+        } else if let Some(tag) = tagged.first_tag_mut() {
+            tag.set_title("Rust Test Title".to_string());
+        }
+
+        let mut out = data.clone();
+        let mut cursor = Cursor::new(&mut out);
+        tagged.save_to(&mut cursor, WriteOptions::default()).unwrap();
+
+        // Reload and verify
+        let reloaded = Probe::new(Cursor::new(&out))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+        let reloaded_tag = reloaded.primary_tag().or_else(|| reloaded.first_tag()).unwrap();
+        assert_eq!(reloaded_tag.title().as_deref(), Some("Rust Test Title"));
+    }
+
+    #[test]
+    fn test_flac_buffer_save_round_trip() {
+        use lofty::config::WriteOptions;
+
+        let data = std::fs::read(sample_path("flac.flac")).unwrap();
+        let mut tagged = Probe::new(Cursor::new(&data))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+
+        if let Some(tag) = tagged.primary_tag_mut() {
+            tag.set_title("FLAC Rust Title".to_string());
+        } else if let Some(tag) = tagged.first_tag_mut() {
+            tag.set_title("FLAC Rust Title".to_string());
+        }
+
+        let mut out = data.clone();
+        let mut cursor = Cursor::new(&mut out);
+        tagged.save_to(&mut cursor, WriteOptions::default()).unwrap();
+
+        let reloaded = Probe::new(Cursor::new(&out))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+        let reloaded_tag = reloaded.primary_tag().or_else(|| reloaded.first_tag()).unwrap();
+        assert_eq!(reloaded_tag.title().as_deref(), Some("FLAC Rust Title"));
+    }
+
+    #[test]
+    fn test_ogg_buffer_save_round_trip() {
+        use lofty::config::WriteOptions;
+
+        let data = std::fs::read(sample_path("ogg.opus")).unwrap();
+        let mut tagged = Probe::new(Cursor::new(&data))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+
+        if let Some(tag) = tagged.primary_tag_mut() {
+            tag.set_title("OGG Rust Title".to_string());
+        } else if let Some(tag) = tagged.first_tag_mut() {
+            tag.set_title("OGG Rust Title".to_string());
+        }
+
+        let mut out = data.clone();
+        let mut cursor = Cursor::new(&mut out);
+        tagged.save_to(&mut cursor, WriteOptions::default()).unwrap();
+
+        let reloaded = Probe::new(Cursor::new(&out))
+            .guess_file_type()
+            .unwrap()
+            .read()
+            .unwrap();
+        let reloaded_tag = reloaded.primary_tag().or_else(|| reloaded.first_tag()).unwrap();
+        assert_eq!(reloaded_tag.title().as_deref(), Some("OGG Rust Title"));
+    }
+}

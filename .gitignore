@@ -150,6 +150,7 @@ dist
 
 *.node
 *.wasm
+package-lock.json
 
 ### Node Patch ###
 # Serverless Webpack directories

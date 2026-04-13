@@ -76,6 +76,15 @@ export declare class MusicTagger {
    */
   get buffer(): Uint8Array
   /**
+   * Current audio file path
+   *
+   * For files loaded via `loadPath()`, this returns the file path.
+   * For files loaded via `loadBuffer()`, this returns `null`.
+   *
+   * @throws If no file or buffer loaded
+   */
+  get path(): string | null
+  /**
    * Audio quality classification ("HQ", "SQ", or "HiRes")
    *
    * @throws If no file or buffer loaded

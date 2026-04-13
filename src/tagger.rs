@@ -312,6 +312,17 @@ impl MusicTagger {
         Ok(Uint8Array::new(self.inner()?.buffer.clone()))
     }
 
+    /// Current audio file path
+    ///
+    /// For files loaded via `loadPath()`, this returns the file path.
+    /// For files loaded via `loadBuffer()`, this returns `null`.
+    ///
+    /// @throws If no file or buffer loaded
+    #[napi(getter)]
+    pub fn path(&self) -> Result<Option<String>> {
+        Ok(self.inner()?.path.clone())
+    }
+
     /// Audio quality classification ("HQ", "SQ", or "HiRes")
     ///
     /// @throws If no file or buffer loaded

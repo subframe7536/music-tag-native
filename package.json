@@ -62,10 +62,11 @@
     "build:debug": "napi build --platform",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:rebuild": "pnpm run build:debug && vitest run",
     "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
-    "release": "pnpm build && pnpm test && bumpp --all"
+    "release": "bumpp -x \"pnpm run test:rebuild\" --all"
   },
   "devDependencies": {
     "@emnapi/core": "^1.7.1",

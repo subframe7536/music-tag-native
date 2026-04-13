@@ -4,7 +4,9 @@ env:
   APP_NAME: music-tag-native
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
-
+permissions:
+  contents: write
+  id-token: write
 on:
   push:
     branches:
@@ -306,9 +308,6 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
     needs:
       - lint
       # - build-freebsd
@@ -337,22 +336,20 @@ jobs:
       - name: List packages
         run: ls -R ./npm
         shell: bash
-      - name: Publish using OIDC
+      - name: Publish
         run: |
+          npm config set provenance true
           if git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
           then
-            npm i -g npm@latest
-            for dir in npm/*; do
-              (cd "$dir" && npm publish --ignore-scripts --access public)
-            done
-            npm publish --ignore-scripts --access public
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+            npm publish --access public
           elif git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
           then
-            npm i -g npm@latest
-            for dir in npm/*; do
-              (cd "$dir" && npm publish --ignore-scripts --tag next --access public)
-            done
-            npm publish --ignore-scripts --tag next --access public
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+            npm publish --tag next --access public
           else
             echo "Not a release, skipping publish"
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

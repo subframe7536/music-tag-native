@@ -44,6 +44,8 @@
       "aarch64-unknown-linux-musl",
       "aarch64-apple-darwin",
       "aarch64-pc-windows-msvc",
+      "armv7-unknown-linux-gnueabihf",
+      "armv7-unknown-linux-musleabihf",
       "wasm32-wasi-preview1-threads"
     ]
   },

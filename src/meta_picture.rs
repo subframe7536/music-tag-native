@@ -37,11 +37,7 @@ pub fn from_lofty_picture_slice(pics: &[Picture]) -> Option<Vec<MetaPicture>> {
 
 pub fn from_lofty_picture(pic: &Picture) -> MetaPicture {
     MetaPicture {
-        cover_type: pic
-            .pic_type()
-            .as_ape_key()
-            .unwrap_or("Unknown")
-            .to_owned(),
+        cover_type: pic.pic_type().as_ape_key().unwrap_or("Unknown").to_owned(),
         mime_type: pic.mime_type().map(|mime| mime.as_str().to_owned()),
         description: pic.description().map(ToOwned::to_owned),
         data: pic.data().into(),

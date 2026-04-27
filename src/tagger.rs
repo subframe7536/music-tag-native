@@ -842,6 +842,7 @@ impl MusicTagger {
             let old_len = tag.picture_count() as usize;
 
             for (i, pic) in new_pics.into_iter().enumerate() {
+                // lofty handles the index out of bounds here (appends when i >= picture_count)
                 tag.set_picture(i, to_lofty_picture(pic));
             }
 

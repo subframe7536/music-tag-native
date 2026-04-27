@@ -21,4 +21,3 @@ opt-level = "s"
 codegen-units = 1
 strip = "symbols"
 panic = "abort"
-overflow-checks = false

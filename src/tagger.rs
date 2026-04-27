@@ -192,9 +192,7 @@ impl MusicTagger {
     /// @note Any unsaved changes will be lost when disposing.
     #[napi]
     pub fn dispose(&mut self) {
-        if self.inner.is_some() {
-            self.inner = None;
-        }
+        self.inner = None;
     }
 
     /// Check if the current file is disposed. Use this method to verify
@@ -843,18 +841,14 @@ impl MusicTagger {
             let new_len = new_pics.len();
             let old_len = tag.picture_count() as usize;
 
+            for (i, pic) in new_pics.into_iter().enumerate() {
+                tag.set_picture(i, to_lofty_picture(pic));
+            }
+
             if new_len < old_len {
-                for (i, pic) in new_pics.into_iter().enumerate() {
-                    tag.set_picture(i, to_lofty_picture(pic));
-                }
                 (new_len..old_len).rev().for_each(|i| {
                     tag.remove_picture(i);
                 });
-            } else {
-                for (i, pic) in new_pics.into_iter().enumerate() {
-                    // lofty handle the index out of bound here
-                    tag.set_picture(i, to_lofty_picture(pic));
-                }
             }
         })
     }

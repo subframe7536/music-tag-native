@@ -1,7 +1,6 @@
 use lofty::picture::{MimeType, Picture, PictureType};
 use napi::bindgen_prelude::Uint8Array;
 use napi_derive::napi;
-use std::borrow::Cow;
 
 #[napi]
 pub struct MetaPicture {
@@ -18,8 +17,8 @@ impl MetaPicture {
     #[napi(constructor)]
     pub fn new(mime: String, data: Uint8Array, desc: Option<String>) -> Self {
         MetaPicture {
-            cover_type: PictureType::CoverFront.as_ape_key().expect("").to_string(),
-            mime_type: Some(mime.to_string()),
+            cover_type: PictureType::CoverFront.as_ape_key().expect("").to_owned(),
+            mime_type: Some(mime),
             description: desc,
             data,
         }
@@ -41,10 +40,10 @@ pub fn from_lofty_picture(pic: &Picture) -> MetaPicture {
         cover_type: pic
             .pic_type()
             .as_ape_key()
-            .map_or_else(|| Cow::Borrowed("Unknown"), Cow::Borrowed)
-            .into_owned(),
-        mime_type: pic.mime_type().map(|mime| mime.as_str().to_string()),
-        description: pic.description().map(ToString::to_string),
+            .unwrap_or("Unknown")
+            .to_owned(),
+        mime_type: pic.mime_type().map(|mime| mime.as_str().to_owned()),
+        description: pic.description().map(ToOwned::to_owned),
         data: pic.data().into(),
     }
 }

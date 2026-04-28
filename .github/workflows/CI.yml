@@ -4,9 +4,7 @@ env:
   APP_NAME: music-tag-native
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
-permissions:
-  contents: write
-  id-token: write
+permissions: {}
 on:
   push:
     branches:
@@ -317,6 +315,10 @@ jobs:
       - test-macOS-windows-binding
       - test-linux-binding
       - test-wasi
+    permissions:
+      id-token: write # required for trusted publishing (OIDC provenance)
+    env:
+      PUBLISH_FLAGS: '--provenance --access public --no-git-checks'
     steps:
       - uses: actions/checkout@v5
       - name: setup pnpm
@@ -326,6 +328,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - run: npm install -g npm@latest
       - name: Install dependencies
         run: pnpm install
       - name: Download all artifacts
@@ -339,20 +342,46 @@ jobs:
       - name: List packages
         run: ls -R ./npm
         shell: bash
+      - name: Set Tag
+        id: set-tag
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+          if [[ $VERSION == *"alpha"* ]]; then
+            echo "tag=alpha" >> $GITHUB_OUTPUT
+          elif [[ $VERSION == *"beta"* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+          elif [[ $VERSION == *"rc"* ]]; then
+            echo "tag=rc" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+      - name: Check Publish
+        run: |
+          TAG=${{ steps.set-tag.outputs.tag }}
+          for package in ./npm/*/
+          do
+            pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+          done
+          pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
       - name: Publish
         run: |
-          npm config set provenance true
-          if git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          TAG=${{ steps.set-tag.outputs.tag }}
+          if echo "$COMMIT_MSG" | grep -q "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
           then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --access public
-          elif git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --tag next --access public
+            # Trusted publishing is configured, no auth token required.
+            # Publish sub-packages first so root optionalDependencies resolve correctly.
+            for package in ./npm/*/
+            do
+              pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
+            done
+            # Update optionalDependencies in root package.json.
+            pnpm exec napi pre-publish --no-gh-release -t npm
+            pnpm install --no-frozen-lockfile
+            # Publish root package.
+            pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
           else
-            echo "Not a release, skipping publish"
+            echo "Not a release commit, skipping publish"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

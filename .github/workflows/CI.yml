@@ -4,9 +4,7 @@ env:
   APP_NAME: music-tag-native
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
-permissions:
-  contents: write
-  id-token: write
+permissions: {}
 on:
   push:
     branches:
@@ -317,42 +315,84 @@ jobs:
       - test-macOS-windows-binding
       - test-linux-binding
       - test-wasi
+    permissions:
+      id-token: write # required for trusted publishing (OIDC provenance)
+    env:
+      PUBLISH_FLAGS: '--provenance --access public --no-git-checks'
     steps:
       - uses: actions/checkout@v5
+      - name: Check release
+        id: check-release
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -q "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+"; then
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+            VERSION=$(jq -r '.version' package.json)
+            if [[ $VERSION == *"alpha"* ]]; then
+              echo "tag=alpha" >> $GITHUB_OUTPUT
+            elif [[ $VERSION == *"beta"* ]]; then
+              echo "tag=beta" >> $GITHUB_OUTPUT
+            elif [[ $VERSION == *"rc"* ]]; then
+              echo "tag=rc" >> $GITHUB_OUTPUT
+            else
+              echo "tag=latest" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+            echo "Not a release commit, skipping publish"
+          fi
       - name: setup pnpm
+        if: steps.check-release.outputs.should-publish == 'true'
         uses: pnpm/action-setup@v4
       - name: Setup node
+        if: steps.check-release.outputs.should-publish == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
+      - run: npm install -g npm@latest
+        if: steps.check-release.outputs.should-publish == 'true'
       - name: Install dependencies
+        if: steps.check-release.outputs.should-publish == 'true'
         run: pnpm install
       - name: Download all artifacts
+        if: steps.check-release.outputs.should-publish == 'true'
         uses: actions/download-artifact@v6
         with:
           path: artifacts
       - name: create npm dirs
+        if: steps.check-release.outputs.should-publish == 'true'
         run: pnpm napi create-npm-dirs
       - name: Move artifacts
+        if: steps.check-release.outputs.should-publish == 'true'
         run: pnpm artifacts
       - name: List packages
+        if: steps.check-release.outputs.should-publish == 'true'
         run: ls -R ./npm
         shell: bash
-      - name: Publish
+      - name: Check Publish
+        if: steps.check-release.outputs.should-publish == 'true'
         run: |
-          npm config set provenance true
-          if git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --access public
-          elif git log -1 --pretty=%B | grep "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --tag next --access public
-          else
-            echo "Not a release, skipping publish"
-          fi
+          TAG=${{ steps.check-release.outputs.tag }}
+          for package in ./npm/*/
+          do
+            pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+          done
+          pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+      - name: Publish
+        if: steps.check-release.outputs.should-publish == 'true'
+        run: |
+          TAG=${{ steps.check-release.outputs.tag }}
+          # Trusted publishing is configured, no auth token required.
+          # Publish sub-packages first so root optionalDependencies resolve correctly.
+          for package in ./npm/*/
+          do
+            pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
+          done
+          # Update optionalDependencies in root package.json.
+          pnpm exec napi pre-publish --no-gh-release -t npm
+          pnpm install --no-frozen-lockfile
+          # Publish root package.
+          pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

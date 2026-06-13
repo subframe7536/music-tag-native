@@ -32,7 +32,6 @@ struct MetaFileInner {
     path: Option<String>,
 }
 
-const ERR_NO_TAG: &str = "File must contain at least one tag";
 const ERR_DISPOSED: &str = "File has been disposed";
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const ERR_INVALID_RATING: &str = "Rating should be integer in [1, 5]";
@@ -60,6 +59,11 @@ impl MusicTagger {
         F: FnOnce(&Tag) -> Option<R>,
     {
         let inner = self.inner()?;
+
+        if !inner.file.contains_tag() {
+            return Ok(None);
+        }
+
         Ok(inner
             .file
             .primary_tag()
@@ -74,6 +78,13 @@ impl MusicTagger {
     {
         let inner = self.inner_mut()?;
 
+        if !inner.file.contains_tag() {
+            // If not tag is available in the file, insert an empty one.
+            inner
+                .file
+                .insert_tag(Tag::new(inner.file.file_type().primary_tag_type()));
+        }
+
         if let Some(tag) = inner.file.primary_tag_mut() {
             f(tag);
             Ok(())
@@ -81,7 +92,7 @@ impl MusicTagger {
             f(tag);
             Ok(())
         } else {
-            Err(Error::new(Status::GenericFailure, ERR_NO_TAG))
+            unreachable!("there must be a tag available after inserting")
         }
     }
 
@@ -135,17 +146,12 @@ impl MusicTagger {
             .read()
             .map_err(|e| Error::new(Status::InvalidArg, &e.to_string()))?;
 
-        // Ensure there's at least one tag
-        if file.primary_tag().is_none() && file.first_tag().is_none() {
-            Err(Error::new(Status::InvalidArg, ERR_NO_TAG))
-        } else {
-            self.inner = Some(MetaFileInner {
-                buffer: Some(buffer),
-                file,
-                path: None,
-            });
-            Ok(())
-        }
+        self.inner = Some(MetaFileInner {
+            buffer: Some(buffer),
+            file,
+            path: None,
+        });
+        Ok(())
     }
 
     /// Load music file from a file path (dispose the old one before)
@@ -170,17 +176,12 @@ impl MusicTagger {
             .read()
             .map_err(|e| Error::new(Status::InvalidArg, &e.to_string()))?;
 
-        // Ensure there's at least one tag
-        if file.primary_tag().is_none() && file.first_tag().is_none() {
-            Err(Error::new(Status::InvalidArg, ERR_NO_TAG))
-        } else {
-            self.inner = Some(MetaFileInner {
-                buffer: None,
-                file,
-                path: Some(path),
-            });
-            Ok(())
-        }
+        self.inner = Some(MetaFileInner {
+            buffer: None,
+            file,
+            path: Some(path),
+        });
+        Ok(())
     }
 
     /// Dispose of the currently loaded file
@@ -931,6 +932,12 @@ mod tests {
         assert!(t.duration().unwrap() > 0);
     }
 
+    #[test]
+    #[should_panic]
+    fn test_dont_load_garbage_file() {
+        tagger_from_path("not-mp3.mp3");
+    }
+
     // ── load from buffer ───────────────────────────────────────────────────
 
     #[test]
@@ -959,6 +966,12 @@ mod tests {
         let t = tagger_from_buffer("wav.wav");
         assert!(!t.is_disposed());
         assert!(t.tag_type().unwrap().is_some());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_dont_load_garbage_buffer() {
+        tagger_from_buffer("not-mp3.mp3");
     }
 
     // ── audio properties ────────────────────────────────────────────────────
@@ -1009,6 +1022,13 @@ mod tests {
             tag_type == "ID3V1" || tag_type == "ID3V2" || tag_type == "APE",
             "unexpected tag type: {tag_type}"
         );
+    }
+
+    #[test]
+    fn test_mp3_without_tag() {
+        let t = tagger_from_path("mp3-no-tags.mp3");
+        let tag_type = t.tag_type().unwrap();
+        assert!(tag_type.is_none(), "unexpected tag in file: {tag_type:?}")
     }
 
     #[test]
@@ -1065,6 +1085,20 @@ mod tests {
     #[test]
     fn test_mp3_buffer_save_round_trip() {
         let mut t = tagger_from_buffer("mp3.mp3");
+        t.set_title(Either::A("Rust Test Title".to_string()))
+            .unwrap();
+        t.save(None).unwrap();
+
+        let saved_buf = t.buffer().unwrap();
+
+        let mut t2 = MusicTagger::new();
+        t2.load_buffer(saved_buf.to_vec().into()).unwrap();
+        assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
+    }
+
+    #[test]
+    fn test_mp3_insert_new_tag_save_round_trip() {
+        let mut t = tagger_from_buffer("mp3-no-tags.mp3");
         t.set_title(Either::A("Rust Test Title".to_string()))
             .unwrap();
         t.save(None).unwrap();

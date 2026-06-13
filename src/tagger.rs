@@ -92,7 +92,9 @@ impl MusicTagger {
             f(tag);
             Ok(())
         } else {
-            unreachable!("there must be a tag available after inserting")
+            Err(Error::from_reason(
+                "UNREACHABLE: a tag must be available after inserting",
+            ))
         }
     }
 

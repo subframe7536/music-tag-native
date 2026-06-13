@@ -27,7 +27,7 @@ pub struct MusicTagger {
 }
 
 struct MetaFileInner {
-    buffer: Vec<u8>,
+    buffer: Option<Uint8Array>,
     file: TaggedFile,
     path: Option<String>,
 }
@@ -129,8 +129,7 @@ impl MusicTagger {
     pub fn load_buffer(&mut self, buffer: Uint8Array) -> Result<()> {
         self.dispose();
 
-        let buffer_vec = buffer.to_vec();
-        let file = Probe::new(Cursor::new(&buffer_vec))
+        let file = Probe::new(Cursor::new(&buffer))
             .guess_file_type()
             .map_err(|e| Error::new(Status::InvalidArg, &e.to_string()))?
             .read()
@@ -141,7 +140,7 @@ impl MusicTagger {
             Err(Error::new(Status::InvalidArg, ERR_NO_TAG))
         } else {
             self.inner = Some(MetaFileInner {
-                buffer: buffer_vec,
+                buffer: Some(buffer),
                 file,
                 path: None,
             });
@@ -176,7 +175,7 @@ impl MusicTagger {
             Err(Error::new(Status::InvalidArg, ERR_NO_TAG))
         } else {
             self.inner = Some(MetaFileInner {
-                buffer: Vec::with_capacity(0),
+                buffer: None,
                 file,
                 path: Some(path),
             });
@@ -206,6 +205,9 @@ impl MusicTagger {
 
     /// Save metadata changes to buffer, existing path, or a custom path
     ///
+    /// If the metadata was loaded with `loadBuffer`, this will create a copy or the original data,
+    /// changes will not be committed to original `Uint8Array`.
+    ///
     /// @param path Optional output file path (Node.js only). If provided,
     /// saves to this path for this call.
     ///
@@ -218,9 +220,9 @@ impl MusicTagger {
         let has_custom_path = path.is_some();
 
         // === BRANCH 1: Buffer Mode ===
-        if !inner.buffer.is_empty() {
+        if inner.buffer.is_some() {
             // transactional save: work on a clone to prevent corruption
-            let mut scratch_buffer = inner.buffer.clone();
+            let mut scratch_buffer = inner.buffer.as_ref().unwrap().to_vec();
             let mut cursor = Cursor::new(&mut scratch_buffer);
 
             inner
@@ -234,7 +236,7 @@ impl MusicTagger {
                 })?;
 
             // Commit changes
-            inner.buffer = scratch_buffer;
+            inner.buffer = Some(Uint8Array::new(scratch_buffer));
 
             // Handle export to file (Node.js only)
             if let Some(custom_path) = path {
@@ -242,7 +244,7 @@ impl MusicTagger {
                     return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                 }
 
-                std::fs::write(&custom_path, &inner.buffer).map_err(|e| {
+                std::fs::write(&custom_path, inner.buffer.as_ref().unwrap()).map_err(|e| {
                     Error::new(
                         Status::GenericFailure,
                         format!("Failed writing to custom path '{}': {}", custom_path, e),
@@ -298,7 +300,7 @@ impl MusicTagger {
         }
     }
 
-    /// Current audio file buffer as a `Uint8Array`
+    /// Current audio file buffer's copy as a `Uint8Array`
     ///
     /// @throws If no file or buffer loaded
     ///
@@ -307,7 +309,11 @@ impl MusicTagger {
     /// returns an empty buffer.
     #[napi(getter)]
     pub fn buffer(&self) -> Result<Uint8Array> {
-        Ok(Uint8Array::new(self.inner()?.buffer.clone()))
+        let arr = self.inner()?.buffer.as_ref();
+        if arr.is_none() {
+            return Ok(Uint8Array::new(Vec::with_capacity(0)));
+        }
+        Ok(Uint8Array::new(arr.unwrap().to_vec()))
     }
 
     /// Current audio file path
@@ -384,8 +390,10 @@ impl MusicTagger {
             std::fs::metadata(path)
                 .map(|m| m.len() as f64)
                 .unwrap_or(0.0)
+        } else if let Some(buf) = &self.inner()?.buffer {
+            buf.len() as f64
         } else {
-            self.inner()?.buffer.len() as f64
+            0.0 // path mode with no buffer — fallback gracefully
         };
         let bitrate_kbps = ((file_size_bytes * 8.0) / (duration_secs * 1000.0)).round() as u32;
 

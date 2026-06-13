@@ -79,7 +79,7 @@ impl MusicTagger {
         let inner = self.inner_mut()?;
 
         if !inner.file.contains_tag() {
-            // If not tag is available in the file, insert an empty one.
+            // If no tag is available in the file, insert an empty one.
             inner
                 .file
                 .insert_tag(Tag::new(inner.file.file_type().primary_tag_type()));
@@ -137,7 +137,6 @@ impl MusicTagger {
     /// @param buffer A Uint8Array containing the audio file data
     ///
     /// @throws If the buffer doesn't contain a valid audio file
-    /// @throws If the file doesn't contain any metadata tags
     #[napi]
     pub fn load_buffer(&mut self, buffer: Uint8Array) -> Result<()> {
         self.dispose();
@@ -162,7 +161,6 @@ impl MusicTagger {
     ///
     /// @throws If the path doesn't exist or isn't accessible
     /// @throws If the file doesn't contain a valid audio format
-    /// @throws If the file doesn't contain any metadata tags
     /// @throws If runs in WebAssembly environments (due to file system restrictions).
     #[napi]
     pub fn load_path(&mut self, path: String) -> Result<()> {

@@ -205,8 +205,8 @@ impl MusicTagger {
 
     /// Save metadata changes to buffer, existing path, or a custom path
     ///
-    /// If the metadata was loaded with `loadBuffer`, this will create a copy or the original data,
-    /// changes will not be committed to original `Uint8Array`.
+    /// If the metadata was loaded with `loadBuffer`, this will create a copy of the original data,
+    /// changes will not be committed to the original `Uint8Array`.
     ///
     /// @param path Optional output file path (Node.js only). If provided,
     /// saves to this path for this call.
@@ -300,7 +300,7 @@ impl MusicTagger {
         }
     }
 
-    /// Current audio file buffer's copy as a `Uint8Array`
+    /// A copy of the current audio file buffer as a `Uint8Array`
     ///
     /// @throws If no file or buffer loaded
     ///
@@ -309,11 +309,11 @@ impl MusicTagger {
     /// returns an empty buffer.
     #[napi(getter)]
     pub fn buffer(&self) -> Result<Uint8Array> {
-        let arr = self.inner()?.buffer.as_ref();
-        if arr.is_none() {
-            return Ok(Uint8Array::new(Vec::with_capacity(0)));
+        if let Some(arr) = self.inner()?.buffer.as_ref() {
+            Ok(Uint8Array::new(arr.to_vec()))
+        } else {
+            Ok(Uint8Array::new(Vec::new()))
         }
-        Ok(Uint8Array::new(arr.unwrap().to_vec()))
     }
 
     /// Current audio file path

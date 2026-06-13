@@ -57,6 +57,9 @@ export declare class MusicTagger {
   /**
    * Save metadata changes to buffer, existing path, or a custom path
    *
+   * If the metadata was loaded with `loadBuffer`, this will create a copy or the original data,
+   * changes will not be committed to original `Uint8Array`.
+   *
    * @param path Optional output file path (Node.js only). If provided,
    * saves to this path for this call.
    *
@@ -66,7 +69,7 @@ export declare class MusicTagger {
    */
   save(path?: string | undefined | null): void
   /**
-   * Current audio file buffer as a `Uint8Array`
+   * Current audio file buffer's copy as a `Uint8Array`
    *
    * @throws If no file or buffer loaded
    *

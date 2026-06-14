@@ -386,13 +386,22 @@ jobs:
           TAG=${{ steps.check-release.outputs.tag }}
           ROOT_PACKAGE_NAME=$(jq -r '.name' package.json)
           ROOT_PACKAGE_VERSION=$(jq -r '.version' package.json)
+          NPM_VIEW_OUTPUT=$(mktemp)
+          NPM_VIEW_ERROR=$(mktemp)
+          trap 'rm -f "${NPM_VIEW_OUTPUT}" "${NPM_VIEW_ERROR}"' EXIT
           # Trusted publishing is configured, publish token is not required.
           # Prepublish updates package metadata, publishes platform packages, and uploads release assets.
           pnpm run prepublishOnly
-          if npm view "${ROOT_PACKAGE_NAME}@${ROOT_PACKAGE_VERSION}" version >/dev/null 2>&1; then
+          if npm view "${ROOT_PACKAGE_NAME}@${ROOT_PACKAGE_VERSION}" version --json >"${NPM_VIEW_OUTPUT}" 2>"${NPM_VIEW_ERROR}"; then
             echo "Root package ${ROOT_PACKAGE_NAME}@${ROOT_PACKAGE_VERSION} is already published, skipping."
-          else
+            cat "${NPM_VIEW_OUTPUT}"
+          elif grep -q 'npm error code E404' "${NPM_VIEW_ERROR}"; then
+            # prepublishOnly already ran above, so skip lifecycle scripts here to avoid republishing platform packages.
             pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --ignore-scripts
+          else
+            cat "${NPM_VIEW_OUTPUT}"
+            cat "${NPM_VIEW_ERROR}"
+            exit 1
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

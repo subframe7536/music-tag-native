@@ -24,7 +24,6 @@ export declare class MusicTagger {
    * @param buffer A Uint8Array containing the audio file data
    *
    * @throws If the buffer doesn't contain a valid audio file
-   * @throws If the file doesn't contain any metadata tags
    */
   loadBuffer(buffer: Uint8Array): void
   /**
@@ -34,7 +33,6 @@ export declare class MusicTagger {
    *
    * @throws If the path doesn't exist or isn't accessible
    * @throws If the file doesn't contain a valid audio format
-   * @throws If the file doesn't contain any metadata tags
    * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
   loadPath(path: string): void

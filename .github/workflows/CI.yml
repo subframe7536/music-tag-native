@@ -316,6 +316,7 @@ jobs:
       - test-linux-binding
       - test-wasi
     permissions:
+      contents: write
       id-token: write # required for trusted publishing (OIDC provenance)
     env:
       PUBLISH_FLAGS: "--provenance --access public --no-git-checks"
@@ -383,8 +384,15 @@ jobs:
         if: steps.check-release.outputs.should-publish == 'true'
         run: |
           TAG=${{ steps.check-release.outputs.tag }}
+          ROOT_PACKAGE_NAME=$(jq -r '.name' package.json)
+          ROOT_PACKAGE_VERSION=$(jq -r '.version' package.json)
           # Trusted publishing is configured, publish token is not required.
-          # Update optionalDependencies in root package.json and publish root package.
-          pnpm publish ./ -r --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
+          # Prepublish updates package metadata, publishes platform packages, and uploads release assets.
+          pnpm run prepublishOnly
+          if npm view "${ROOT_PACKAGE_NAME}@${ROOT_PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "Root package ${ROOT_PACKAGE_NAME}@${ROOT_PACKAGE_VERSION} is already published, skipping."
+          else
+            pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --ignore-scripts
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

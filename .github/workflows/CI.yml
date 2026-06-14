@@ -27,7 +27,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       # - name: setup pnpm
       #   uses: pnpm/action-setup@v4
       # - name: Setup node
@@ -97,9 +97,9 @@ jobs:
     name: stable - ${{ matrix.settings.target }} - node@22
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup node
         uses: actions/setup-node@v6
         with:
@@ -185,9 +185,9 @@ jobs:
           - "22"
     runs-on: ${{ matrix.settings.host }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup node
         uses: actions/setup-node@v6
         with:
@@ -224,9 +224,9 @@ jobs:
           - "22"
     runs-on: ${{ contains(matrix.target, 'aarch64') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup node
         uses: actions/setup-node@v6
         with:
@@ -284,9 +284,9 @@ jobs:
       - build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup node
         uses: actions/setup-node@v6
         with:
@@ -316,6 +316,7 @@ jobs:
       - test-linux-binding
       - test-wasi
     permissions:
+      contents: write # required for creating releases and uploading release assets
       id-token: write # required for trusted publishing (OIDC provenance)
     env:
       PUBLISH_FLAGS: "--provenance --access public --no-git-checks"

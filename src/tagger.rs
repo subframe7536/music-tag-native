@@ -336,7 +336,7 @@ impl MusicTagger {
     /// - HQ: Lossy formats (MP3, AAC, etc.)
     /// - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
     /// - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
-    #[napi(getter)]
+    #[napi(getter, ts_type = "(): \"HQ\" | \"SQ\" | \"HiRes\"")]
     pub fn quality(&self) -> Result<String> {
         let is_lossless = matches!(
             self.inner()?.file.file_type(),
@@ -432,10 +432,11 @@ impl MusicTagger {
 
     /// File's metadata tag type, or `null` if not recognized
     ///
-    /// Supported tag types: "ID3V1", "ID3V2", "APE", "VORBIS", "MP4", "AIFF", "RIFF"
-    ///
     /// @throws If no file or buffer loaded
-    #[napi(getter)]
+    #[napi(
+        getter,
+        ts_type = "(): \"AIFF\" | \"APE\" | \"ID3V1\" | \"ID3V2\" | \"ILST\" | \"RIFF\" | \"VORBIS\" | null"
+    )]
     pub fn tag_type(&self) -> Result<Option<String>> {
         self.tag(|tag| match tag.tag_type() {
             TagType::AiffText => Some("AIFF".to_string()),
@@ -711,10 +712,10 @@ impl MusicTagger {
         self.set_text_field(ItemKey::CopyrightMessage, copyright)
     }
 
-    /// User star ratings (integer in [1, 5]), or `null` if not set
+    /// User star ratings, or `null` if not set
     ///
     /// @throws If no file or buffer loaded
-    #[napi(getter)]
+    #[napi(getter, ts_type = "(): 1 | 2 | 3 | 4 | 5 | null")]
     pub fn rating(&self) -> Result<Option<u8>> {
         self.tag(|tag| match tag.ratings().next().map(|p| p.rating) {
             Some(StarRating::One) => Some(1),

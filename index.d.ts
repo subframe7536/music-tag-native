@@ -95,7 +95,7 @@ export declare class MusicTagger {
    * - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
    * - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
    */
-  get quality(): string
+  get quality(): "HQ" | "SQ" | "HiRes"
   /**
    * Audio bit depth in bits, or `null` if not available
    *
@@ -140,11 +140,9 @@ export declare class MusicTagger {
   /**
    * File's metadata tag type, or `null` if not recognized
    *
-   * Supported tag types: "ID3V1", "ID3V2", "APE", "VORBIS", "MP4", "AIFF", "RIFF"
-   *
    * @throws If no file or buffer loaded
    */
-  get tagType(): string | null
+  get tagType(): "AIFF" | "APE" | "ID3V1" | "ID3V2" | "ILST" | "RIFF" | "VORBIS" | null
   /**
    * Title, or `null` if not set
    *
@@ -267,11 +265,11 @@ export declare class MusicTagger {
   get copyright(): string | null
   set copyright(copyright: string | null)
   /**
-   * User star ratings (integer in [1, 5]), or `null` if not set
+   * User star ratings, or `null` if not set
    *
    * @throws If no file or buffer loaded
    */
-  get rating(): number | null
+  get rating(): 1 | 2 | 3 | 4 | 5 | null
   set rating(rating: number | null)
   /**
    * Track replay gain in dB, or `null` if not set

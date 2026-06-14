@@ -2,20 +2,20 @@ name: CI
 env:
   DEBUG: napi:*
   APP_NAME: music-tag-native
-  MACOSX_DEPLOYMENT_TARGET: '10.13'
-  CARGO_INCREMENTAL: '1'
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
+  CARGO_INCREMENTAL: "1"
 permissions: {}
 on:
   push:
     branches:
       - main
     tags-ignore:
-      - '**'
+      - "**"
     paths-ignore:
-      - 'build.rs'
-      - '**/*.md'
+      - "build.rs"
+      - "**/*.md"
       - LICENSE
-      - '**/*.gitignore'
+      - "**/*.gitignore"
       - .editorconfig
       - docs/**
   pull_request: null
@@ -153,14 +153,14 @@ jobs:
         if: matrix.settings.target != 'wasm32-wasip1-threads'
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: '*.node'
+          path: "*.node"
           if-no-files-found: error
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         if: matrix.settings.target == 'wasm32-wasip1-threads'
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: '*.wasm'
+          path: "*.wasm"
           if-no-files-found: error
 
   test-macOS-windows-binding:
@@ -181,8 +181,8 @@ jobs:
             target: aarch64-apple-darwin
             architecture: arm64
         node:
-          - '20'
-          - '22'
+          - "20"
+          - "22"
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v5
@@ -220,8 +220,8 @@ jobs:
           - aarch64-unknown-linux-musl
           - armv7-unknown-linux-gnueabihf
         node:
-          - '20'
-          - '22'
+          - "20"
+          - "22"
     runs-on: ${{ contains(matrix.target, 'aarch64') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v5
@@ -318,7 +318,7 @@ jobs:
     permissions:
       id-token: write # required for trusted publishing (OIDC provenance)
     env:
-      PUBLISH_FLAGS: '--provenance --access public --no-git-checks'
+      PUBLISH_FLAGS: "--provenance --access public --no-git-checks"
     steps:
       - uses: actions/checkout@v5
       - name: Check release
@@ -383,16 +383,8 @@ jobs:
         if: steps.check-release.outputs.should-publish == 'true'
         run: |
           TAG=${{ steps.check-release.outputs.tag }}
-          # Trusted publishing is configured, no auth token required.
-          # Publish sub-packages first so root optionalDependencies resolve correctly.
-          for package in ./npm/*/
-          do
-            pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
-          done
-          # Update optionalDependencies in root package.json.
-          pnpm exec napi pre-publish --no-gh-release -t npm
-          pnpm install --no-frozen-lockfile
-          # Publish root package.
-          pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
+          # Trusted publishing is configured, publish token is not required.
+          # Update optionalDependencies in root package.json and publish root package.
+          pnpm publish ./ -r --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

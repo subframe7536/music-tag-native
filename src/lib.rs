@@ -1,3 +1,6 @@
 mod meta_picture;
-mod tagger;
+mod tagged_file;
 mod utils;
+
+#[cfg(test)]
+mod tests;

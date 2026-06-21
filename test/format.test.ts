@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { join } from 'path'
-import { MusicTagger } from '../index'
+import { TaggedFile } from '../index'
 import { readFileSync } from 'fs'
 import { base } from './const'
 
@@ -12,125 +12,120 @@ const samples = [
 ] as const
 
 describe.sequential('Cross-format Metadata', () => {
-  let tagger: MusicTagger
-
-  afterEach(() => {
-    if (!tagger.isDisposed()) {
-      tagger.dispose()
-    }
-  })
-
   for (const sample of samples) {
+    const buf = readFileSync(join(base, sample.file));
+    let taggedFile: TaggedFile;
     describe(sample.description, () => {
       beforeEach(() => {
-        tagger = new MusicTagger()
-        tagger.loadBuffer(readFileSync(join(base, sample.file)))
-      })
-
-      it('should load the file successfully', () => {
-        expect(tagger.isDisposed()).toBe(false)
-        expect(tagger.tagType).toBeTruthy()
+        taggedFile = TaggedFile.loadFromBuffer(buf)
       })
 
       it('should read title (string or null)', () => {
-        const title = tagger.title
+        const title = taggedFile.title
         expect(title === null || typeof title === 'string').toBe(true)
       })
 
       it('should read artist (string or null)', () => {
-        const artist = tagger.artist
+        const artist = taggedFile.artist
         expect(artist === null || typeof artist === 'string').toBe(true)
       })
 
       it('should read album (string or null)', () => {
-        const album = tagger.album
+        const album = taggedFile.album
         expect(album === null || typeof album === 'string').toBe(true)
       })
 
       it('should read year (number or null)', () => {
-        const year = tagger.year
+        const year = taggedFile.year
         expect(year === null || typeof year === 'number').toBe(true)
       })
 
       it('should read genre (string or null)', () => {
-        const genre = tagger.genre
+        const genre = taggedFile.genre
         expect(genre === null || typeof genre === 'string').toBe(true)
       })
 
       it('should read track number (number or null)', () => {
-        const trackNumber = tagger.trackNumber
+        const trackNumber = taggedFile.trackNumber
         expect(trackNumber === null || typeof trackNumber === 'number').toBe(true)
       })
 
       it('should read disc number (number or null)', () => {
-        const discNumber = tagger.discNumber
+        const discNumber = taggedFile.discNumber
         expect(discNumber === null || typeof discNumber === 'number').toBe(true)
       })
 
       it('should read comment (string or null)', () => {
-        const comment = tagger.comment
+        const comment = taggedFile.comment
         expect(comment === null || typeof comment === 'string').toBe(true)
       })
 
       it('should read pictures (array or null)', () => {
-        const pictures = tagger.pictures
+        const pictures = taggedFile.pictures
         expect(pictures === null || Array.isArray(pictures)).toBe(true)
       })
 
       it('should set and get title', () => {
-        tagger.title = 'Cross-format Title'
-        expect(tagger.title).toBe('Cross-format Title')
+        taggedFile.title = 'Cross-format Title'
+        expect(taggedFile.title).toBe('Cross-format Title')
       })
 
       it('should set and get artist', () => {
-        tagger.artist = 'Cross-format Artist'
-        expect(tagger.artist).toBe('Cross-format Artist')
+        taggedFile.artist = 'Cross-format Artist'
+        expect(taggedFile.artist).toBe('Cross-format Artist')
       })
 
       it('should set and get album', () => {
-        tagger.album = 'Cross-format Album'
-        expect(tagger.album).toBe('Cross-format Album')
+        taggedFile.album = 'Cross-format Album'
+        expect(taggedFile.album).toBe('Cross-format Album')
       })
 
       it('should set and remove title', () => {
-        tagger.title = 'Temporary Title'
-        tagger.title = null
-        expect(tagger.title).toBeNull()
+        taggedFile.title = 'Temporary Title'
+        taggedFile.title = null
+        expect(taggedFile.title).toBeNull()
       })
 
       it('should set and remove artist', () => {
-        tagger.artist = 'Temporary Artist'
-        tagger.artist = null
-        expect(tagger.artist).toBeNull()
+        taggedFile.artist = 'Temporary Artist'
+        taggedFile.artist = null
+        expect(taggedFile.artist).toBeNull()
       })
 
       it('should set year and read it back', () => {
-        tagger.year = 2024
-        expect(tagger.year).toBe(2024)
+        taggedFile.year = 2024
+        expect(taggedFile.year).toBe(2024)
       })
 
       it('should set genre and read it back', () => {
-        tagger.genre = 'Electronic'
-        expect(tagger.genre).toBe('Electronic')
+        taggedFile.genre = 'Electronic'
+        expect(taggedFile.genre).toBe('Electronic')
       })
 
-      it('should save to buffer and reload with modifications', () => {
-        tagger.title = 'Saved Title'
-        tagger.artist = 'Saved Artist'
-        tagger.save()
+      it('should save to buffer and reload with modifications', async () => {
+        taggedFile.title = 'Saved Title'
+        taggedFile.artist = 'Saved Artist'
 
-        const savedBuffer = tagger.buffer
+        const savedBuffer = await taggedFile.save(buf) as Uint8Array;
         expect(savedBuffer).toBeInstanceOf(Uint8Array)
         expect(savedBuffer.length).toBeGreaterThan(0)
 
-        const reloadedTagger = new MusicTagger()
-        try {
-          reloadedTagger.loadBuffer(savedBuffer)
-          expect(reloadedTagger.title).toBe('Saved Title')
-          expect(reloadedTagger.artist).toBe('Saved Artist')
-        } finally {
-          reloadedTagger.dispose()
-        }
+        const reloadedTaggedFile = TaggedFile.loadFromBuffer(savedBuffer);
+        expect(reloadedTaggedFile.title).toBe('Saved Title')
+        expect(reloadedTaggedFile.artist).toBe('Saved Artist')
+      })
+
+      it('should save sync to buffer and reload with modifications', () => {
+        taggedFile.title = 'Saved Title'
+        taggedFile.artist = 'Saved Artist'
+
+        const savedBuffer = taggedFile.saveSync(buf) as Uint8Array;
+        expect(savedBuffer).toBeInstanceOf(Uint8Array)
+        expect(savedBuffer.length).toBeGreaterThan(0)
+
+        const reloadedTaggedFile = TaggedFile.loadFromBuffer(savedBuffer);
+        expect(reloadedTaggedFile.title).toBe('Saved Title')
+        expect(reloadedTaggedFile.artist).toBe('Saved Artist')
       })
     })
   }

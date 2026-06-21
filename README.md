@@ -37,67 +37,65 @@ bun add music-tag-native
 ### Node.js
 
 ```ts
-import { MusicTagger } from 'music-tag-native'
-
-const tagger = new MusicTagger()
+import { TaggedFile } from 'music-tag-native'
 
 // Load from file path
-tagger.loadPath('/path/to/audio/file.mp3')
+const tagged_file = await TaggedFile.loadFromPath('/path/to/audio/file.mp3')
+// synchronous:
+const tagged_file_sync = TaggedFile.loadFromPathSync('/path/to/audio/file.mp3')
 
 // Read metadata
-console.log(tagger.title)
-console.log(tagger.artist)
-console.log(tagger.album)
+console.log(tagged_file.title)
+console.log(tagged_file.artist)
+console.log(tagged_file.album)
 
 // Modify metadata
-tagger.title = 'New Title'
-tagger.artist = 'New Artist'
-tagger.year = 2024
+tagged_file.title = 'New Title'
+tagged_file.artist = 'New Artist'
+tagged_file.year = 2024
 
 // Remove a tag (set to null)
-tagger.albumArtist = null
+tagged_file.albumArtist = null
 
 // Save changes back to file
-tagger.save()
+await tagged_file.save()
+// synchronous:
+tagged_file.saveSync()
 
 // Or save to a different file path
-tagger.save('/path/to/output.mp3')
-
-// Clean up resources
-tagger.dispose()
+await tagged_file.save('/path/to/output.mp3')
 ```
 
 ### Browser
 
 ```ts
-import { MusicTagger } from 'music-tag-native'
-
-const tagger = new MusicTagger()
+import { TaggedFile } from 'music-tag-native'
 
 // Load from buffer
 const response = await fetch('/path/to/audio/file.mp3')
 const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
-tagger.loadBuffer(buffer)
+// `loadFromBuffer` is synchronous only
+const tagged_file = TaggedFile.loadFromBuffer(buffer)
 
 // Read and modify metadata
-console.log(tagger.title)
-tagger.title = 'New Title'
+console.log(tagged_file.title)
+tagged_file.title = 'New Title'
 
-// Get modified buffer
-const modifiedBuffer = tagger.save()
+// Get modified buffer, you need to provide the original data, a new copy with updated tags will be returned
+const modifiedBuffer = await tagged_file.save(buffer)
+// synchronous:
+const modifiedBufferSync = tagged_file.saveSync(buffer)
 
 // Display album art
-const pictures = tagger.pictures
+const pictures = tagged_file.pictures
 if (pictures.length > 0) {
   const picture = pictures[0]
   const blob = new Blob([picture.data], { type: picture.mimeType })
   const url = URL.createObjectURL(blob)
   document.querySelector('img').src = url
 }
-
-tagger.dispose()
 ```
 
 ## API Reference
@@ -106,16 +104,13 @@ tagger.dispose()
 
 #### Loading Files
 
-- `loadPath(path: string): void` - Load audio file from path (Node.js only)
-- `loadBuffer(buffer: Uint8Array): void` - Load audio file from buffer
+- `TaggedFile.loadFromPath(path: string): Promise<TaggedFile>` - Load audio file from path (Node.js only)
+- `TaggedFile.loadFromPathSync(path: string): TaggedFile` - Load audio file from path (Node.js only)
+- `TaggedFile.loadFromBuffer(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
 
 #### Saving Changes
 
-- `save(path?: string | null): Uint8Array | undefined` - Save changes. In Node.js, saves to original path by default, or to `path` when provided. In browser/wasm, `path` is not supported.
-
-#### Resource Management
-
-- `dispose(): void` - Clean up resources. Always call when done with the tagger instance
+- `save(bufferOrPath?: Uint8Array | string | null): Promise<Uint8Array | void>` - Save changes, if it's loaded from buffer, you must provide the original buffer, and the updated copy will be returned. In Node.js, saves to original path by default, or to path provided `bufferOrPath` when provided. In browser/wasm, provide path to `bufferOrPath` is not supported. 
 
 #### Metadata Properties (Read/Write)
 
@@ -168,7 +163,7 @@ Properties for album art and embedded images:
 
 #### PictureType Values
 
-`'Other'`, `'Icon'`, `'OtherIcon'`, `'CoverFront'`, `'CoverBack'`, `'Leaflet'`, `'Media'`, `'LeadArtist'`, `'Artist'`, `'Conductor'`, `'Band'`, `'Composer'`, `'Lyricist'`, `'RecordingLocation'`, `'DuringRecording'`, `'DuringPerformance'`, `'ScreenCapture'`, `'BrightFish'`, `'Illustration'`, `'BandLogo'`, `'PublisherLogo'`, `'Undefined'`
+`'Cover Art (Other)'`, `'Cover Art (Png Icon)'`, `'Cover Art (Icon)'`, `'Cover Art (Front)'`, `'Cover Art (Back)'`, `'Cover Art (Leaflet)'`, `'Cover Art (Media)'`, `'Cover Art (Lead Artist)'`, `'Cover Art (Artist)'`, `'Cover Art (Conductor)'`, `'Cover Art (Band)'`, `'Cover Art (Composer)'`, `'Cover Art (Lyricist)'`, `'Cover Art (Recording Location)'`, `'Cover Art (During Recording)'`, `'Cover Art (During Performance)'`, `'Cover Art (Video Capture)'`, `'Cover Art (Fish)'`, `'Cover Art (Illustration)'`, `'Cover Art (Band Logotype)'`, `'Cover Art (Publisher Logotype)'`, `'Unknown'`
 
 ## Platform Support
 

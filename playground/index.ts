@@ -1,8 +1,8 @@
 // @ts-expect-error fxxk
-import { MusicTagger } from '../music-tag-native.wasi-browser.js'
+import { TaggedFile } from '../music-tag-native.wasi-browser.js'
 // oxlint-disable-next-line no-unused-vars
-import type { MusicTagger as Tagger } from '../index'
-declare class MusicTagger extends Tagger {}
+import type { TaggedFile as Tagger } from '../index'
+declare class TaggedFile extends Tagger {}
 
 import flacSampleUrl from '../samples/flac.flac?url'
 import mp3SampleUrl from '../samples/mp3.mp3?url'
@@ -17,8 +17,8 @@ const samples = [
 ]
 
 interface AppState {
-  tagger: MusicTagger | null
-  currentBuffer: () => Uint8Array<ArrayBuffer> | null
+  tagger: TaggedFile | null
+  currentBuffer: Uint8Array | null
   currentSample: string | null
   editMode: boolean
   hasChanges: boolean
@@ -27,9 +27,7 @@ interface AppState {
 
 const state: AppState = {
   tagger: null,
-  currentBuffer() {
-    return this.tagger?.buffer as any
-  },
+  currentBuffer: null,
   currentSample: null,
   editMode: false,
   hasChanges: false,
@@ -50,7 +48,7 @@ const elements = {
   downloadBtn: document.querySelector('[data-download]')!,
 }
 
-function readProperties(tagger: MusicTagger) {
+function readProperties(tagger: TaggedFile) {
   return {
     quality: tagger.quality,
     bitDepth: tagger.bitDepth,
@@ -62,7 +60,7 @@ function readProperties(tagger: MusicTagger) {
   }
 }
 
-function readTags(tagger: MusicTagger) {
+function readTags(tagger: TaggedFile) {
   return {
     title: tagger.title,
     artist: tagger.artist,
@@ -140,7 +138,7 @@ function updateButtons() {
   resetBtn.disabled = !state.hasChanges
 }
 
-function renderPictures(tagger: MusicTagger) {
+function renderPictures(tagger: TaggedFile) {
   const pictures = tagger.pictures
   
   if (!pictures || pictures.length === 0) {
@@ -175,12 +173,7 @@ async function loadSample(sample: typeof samples[0]) {
     const arrayBuffer = await response.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
 
-    if (state.tagger) {
-      state.tagger.dispose()
-    }
-
-    const tagger = new MusicTagger()
-    tagger.loadBuffer(buffer)
+    const tagger = TaggedFile.loadFromBuffer(buffer)
 
     state.tagger = tagger
     state.currentSample = sample.format
@@ -232,21 +225,19 @@ function saveChanges() {
     )
   })
 
-  state.tagger.save()
+  state.currentBuffer =  state.tagger.saveSync(state.currentBuffer) as Uint8Array
   
-  if (state.tagger.buffer) {
-    state.originalTags = readTags(state.tagger)
-    state.hasChanges = false
+  state.originalTags = readTags(state.tagger)
+  state.hasChanges = false
     
-    elements.status.textContent = '✓ Changes saved to buffer!'
-    ;(elements.downloadSection as HTMLElement).style.display = 'block'
+  elements.status.textContent = '✓ Changes saved to buffer!'
+  ;(elements.downloadSection as HTMLElement).style.display = 'block'
     
-    renderTable(elements.tags, readTags(state.tagger), true)
-    updateButtons()
+  renderTable(elements.tags, readTags(state.tagger), true)
+  updateButtons()
     
-    console.log('✓ Tags updated successfully')
-    console.table(readTags(state.tagger))
-  }
+  console.log('✓ Tags updated successfully')
+  console.table(readTags(state.tagger))
 }
 
 function resetChanges() {
@@ -264,11 +255,12 @@ function downloadModifiedFile() {
     return
   }
 
-  const buf = state.currentBuffer()
+  const buf = state.currentBuffer
   if (!buf) {
     return
   }
-  const blob = new Blob([buf], { type: 'audio/*' })
+  // SAFETY: It's never shared
+  const blob = new Blob([buf as Uint8Array<ArrayBuffer>], { type: 'audio/*' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

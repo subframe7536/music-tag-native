@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { join } from 'path'
-import { MusicTagger, MetaPicture } from '../index'
+import { MetaPicture, TaggedFile } from '../index'
 import { base } from './const'
 import { readFileSync } from 'fs'
 
@@ -13,428 +13,421 @@ const samples = [
 
 for (const sample of samples) {
   describe.sequential(`Metadata Getters and Setters [${sample.description}]`, () => {
-    let tagger: MusicTagger
+    let taggedFile: TaggedFile
     const buffer = readFileSync(join(base, sample.file))
 
-    afterEach(() => {
-      if (!tagger.isDisposed()) {
-        tagger.dispose()
-      }
-    })
-
     beforeEach(() => {
-      tagger = new MusicTagger()
-      tagger.loadBuffer(buffer)
+      taggedFile = TaggedFile.loadFromBuffer(buffer);
     })
 
     describe('title', () => {
       it('should get title', () => {
-        const title = tagger.title
+        const title = taggedFile.title
         expect(title === null || typeof title === 'string').toBe(true)
       })
 
       it('should set title', () => {
-        tagger.title = 'Test Title'
-        expect(tagger.title).toBe('Test Title')
+        taggedFile.title = 'Test Title'
+        expect(taggedFile.title).toBe('Test Title')
       })
 
       it('should remove title when set to null', () => {
-        tagger.title = 'Test Title'
-        tagger.title = null
-        expect(tagger.title).toBeNull()
+        taggedFile.title = 'Test Title'
+        taggedFile.title = null
+        expect(taggedFile.title).toBeNull()
       })
     })
 
     describe('artist', () => {
       it('should get artist', () => {
-        const artist = tagger.artist
+        const artist = taggedFile.artist
         expect(artist === null || typeof artist === 'string').toBe(true)
       })
 
       it('should set artist', () => {
-        tagger.artist = 'Test Artist'
-        expect(tagger.artist).toBe('Test Artist')
+        taggedFile.artist = 'Test Artist'
+        expect(taggedFile.artist).toBe('Test Artist')
       })
 
       it('should remove artist when set to null', () => {
-        tagger.artist = 'Test Artist'
-        tagger.artist = null
-        expect(tagger.artist).toBeNull()
+        taggedFile.artist = 'Test Artist'
+        taggedFile.artist = null
+        expect(taggedFile.artist).toBeNull()
       })
     })
 
     describe('album', () => {
       it('should get album', () => {
-        const album = tagger.album
+        const album = taggedFile.album
         expect(album === null || typeof album === 'string').toBe(true)
       })
 
       it('should set album', () => {
-        tagger.album = 'Test Album'
-        expect(tagger.album).toBe('Test Album')
+        taggedFile.album = 'Test Album'
+        expect(taggedFile.album).toBe('Test Album')
       })
 
       it('should remove album when set to null', () => {
-        tagger.album = 'Test Album'
-        tagger.album = null
-        expect(tagger.album).toBeNull()
+        taggedFile.album = 'Test Album'
+        taggedFile.album = null
+        expect(taggedFile.album).toBeNull()
       })
     })
 
     describe('year', () => {
       it('should get year', () => {
-        const year = tagger.year
+        const year = taggedFile.year
         expect(year === null || typeof year === 'number').toBe(true)
       })
 
       it('should set year', () => {
-        tagger.year = 2024
-        expect(tagger.year).toBe(2024)
+        taggedFile.year = 2024
+        expect(taggedFile.year).toBe(2024)
       })
 
       it('should remove year when set to null', () => {
-        tagger.year = 2024
-        tagger.year = null
-        expect(tagger.year).toBeNull()
+        taggedFile.year = 2024
+        taggedFile.year = null
+        expect(taggedFile.year).toBeNull()
       })
     })
 
     describe('genre', () => {
       it('should get genre', () => {
-        const genre = tagger.genre
+        const genre = taggedFile.genre
         expect(genre === null || typeof genre === 'string').toBe(true)
       })
 
       it('should set genre', () => {
-        tagger.genre = 'Rock'
-        expect(tagger.genre).toBe('Rock')
+        taggedFile.genre = 'Rock'
+        expect(taggedFile.genre).toBe('Rock')
       })
 
       it('should remove genre when set to null', () => {
-        tagger.genre = 'Rock'
-        tagger.genre = null
-        expect(tagger.genre).toBeNull()
+        taggedFile.genre = 'Rock'
+        taggedFile.genre = null
+        expect(taggedFile.genre).toBeNull()
       })
     })
 
     describe('trackNumber', () => {
       it('should get track number', () => {
-        const trackNumber = tagger.trackNumber
+        const trackNumber = taggedFile.trackNumber
         expect(trackNumber === null || typeof trackNumber === 'number').toBe(true)
       })
 
       it('should set track number', () => {
-        tagger.trackNumber = 1
-        expect(tagger.trackNumber).toBe(1)
+        taggedFile.trackNumber = 1
+        expect(taggedFile.trackNumber).toBe(1)
       })
 
       it('should remove track number when set to null', () => {
-        tagger.trackNumber = 1
-        tagger.trackNumber = null
-        expect(tagger.trackNumber).toBeNull()
+        taggedFile.trackNumber = 1
+        taggedFile.trackNumber = null
+        expect(taggedFile.trackNumber).toBeNull()
       })
     })
 
     describe('discNumber', () => {
       it('should get disc number', () => {
-        const discNumber = tagger.discNumber
+        const discNumber = taggedFile.discNumber
         expect(discNumber === null || typeof discNumber === 'number').toBe(true)
       })
 
       it('should set disc number', () => {
-        tagger.discNumber = 1
-        expect(tagger.discNumber).toBe(1)
+        taggedFile.discNumber = 1
+        expect(taggedFile.discNumber).toBe(1)
       })
 
       it('should remove disc number when set to null', () => {
-        tagger.discNumber = 1
-        tagger.discNumber = null
-        expect(tagger.discNumber).toBeNull()
+        taggedFile.discNumber = 1
+        taggedFile.discNumber = null
+        expect(taggedFile.discNumber).toBeNull()
       })
     })
 
     describe('trackTotal', () => {
       it('should get track total', () => {
-        const trackTotal = tagger.trackTotal
+        const trackTotal = taggedFile.trackTotal
         expect(trackTotal === null || typeof trackTotal === 'number').toBe(true)
       })
 
       it('should set track total', () => {
-        tagger.trackTotal = 12
-        expect(tagger.trackTotal).toBe(12)
+        taggedFile.trackTotal = 12
+        expect(taggedFile.trackTotal).toBe(12)
       })
 
       it('should remove track total when set to null', () => {
-        tagger.trackTotal = 12
-        tagger.trackTotal = null
-        expect(tagger.trackTotal).toBeNull()
+        taggedFile.trackTotal = 12
+        taggedFile.trackTotal = null
+        expect(taggedFile.trackTotal).toBeNull()
       })
     })
 
     describe('discsTotal', () => {
       it('should get discs total', () => {
-        const discsTotal = tagger.discsTotal
+        const discsTotal = taggedFile.discsTotal
         expect(discsTotal === null || typeof discsTotal === 'number').toBe(true)
       })
 
       it('should set discs total', () => {
-        tagger.discsTotal = 2
-        expect(tagger.discsTotal).toBe(2)
+        taggedFile.discsTotal = 2
+        expect(taggedFile.discsTotal).toBe(2)
       })
 
       it('should remove discs total when set to null', () => {
-        tagger.discsTotal = 2
-        tagger.discsTotal = null
-        expect(tagger.discsTotal).toBeNull()
+        taggedFile.discsTotal = 2
+        taggedFile.discsTotal = null
+        expect(taggedFile.discsTotal).toBeNull()
       })
     })
 
     describe('comment', () => {
       it('should get comment', () => {
-        const comment = tagger.comment
+        const comment = taggedFile.comment
         expect(comment === null || typeof comment === 'string').toBe(true)
       })
 
       it('should set comment', () => {
-        tagger.comment = 'Test comment'
-        expect(tagger.comment).toBe('Test comment')
+        taggedFile.comment = 'Test comment'
+        expect(taggedFile.comment).toBe('Test comment')
       })
 
       it('should remove comment when set to null', () => {
-        tagger.comment = 'Test comment'
-        tagger.comment = null
-        expect(tagger.comment).toBeNull()
+        taggedFile.comment = 'Test comment'
+        taggedFile.comment = null
+        expect(taggedFile.comment).toBeNull()
       })
     })
 
     describe('albumArtist', () => {
       it('should get album artist', () => {
-        const albumArtist = tagger.albumArtist
+        const albumArtist = taggedFile.albumArtist
         expect(albumArtist === null || typeof albumArtist === 'string').toBe(true)
       })
 
       it('should set album artist', () => {
-        tagger.albumArtist = 'Album Artist'
-        expect(tagger.albumArtist).toBe('Album Artist')
+        taggedFile.albumArtist = 'Album Artist'
+        expect(taggedFile.albumArtist).toBe('Album Artist')
       })
 
       it('should remove album artist when set to null', () => {
-        tagger.albumArtist = 'Album Artist'
-        tagger.albumArtist = null
-        expect(tagger.albumArtist).toBeNull()
+        taggedFile.albumArtist = 'Album Artist'
+        taggedFile.albumArtist = null
+        expect(taggedFile.albumArtist).toBeNull()
       })
     })
 
     describe('composer', () => {
       it('should get composer', () => {
-        const composer = tagger.composer
+        const composer = taggedFile.composer
         expect(composer === null || typeof composer === 'string').toBe(true)
       })
 
       it('should set composer', () => {
-        tagger.composer = 'Composer Name'
-        expect(tagger.composer).toBe('Composer Name')
+        taggedFile.composer = 'Composer Name'
+        expect(taggedFile.composer).toBe('Composer Name')
       })
 
       it('should remove composer when set to null', () => {
-        tagger.composer = 'Composer Name'
-        tagger.composer = null
-        expect(tagger.composer).toBeNull()
+        taggedFile.composer = 'Composer Name'
+        taggedFile.composer = null
+        expect(taggedFile.composer).toBeNull()
       })
     })
 
     describe('conductor', () => {
       it('should get conductor', () => {
-        const conductor = tagger.conductor
+        const conductor = taggedFile.conductor
         expect(conductor === null || typeof conductor === 'string').toBe(true)
       })
 
       it('should set conductor', () => {
-        tagger.conductor = 'Conductor Name'
-        expect(tagger.conductor).toBe('Conductor Name')
+        taggedFile.conductor = 'Conductor Name'
+        expect(taggedFile.conductor).toBe('Conductor Name')
       })
 
       it('should remove conductor when set to null', () => {
-        tagger.conductor = 'Conductor Name'
-        tagger.conductor = null
-        expect(tagger.conductor).toBeNull()
+        taggedFile.conductor = 'Conductor Name'
+        taggedFile.conductor = null
+        expect(taggedFile.conductor).toBeNull()
       })
     })
 
     describe('lyricist', () => {
       it('should get lyricist', () => {
-        const lyricist = tagger.lyricist
+        const lyricist = taggedFile.lyricist
         expect(lyricist === null || typeof lyricist === 'string').toBe(true)
       })
 
       it('should set lyricist', () => {
-        tagger.lyricist = 'Lyricist Name'
-        expect(tagger.lyricist).toBe('Lyricist Name')
+        taggedFile.lyricist = 'Lyricist Name'
+        expect(taggedFile.lyricist).toBe('Lyricist Name')
       })
 
       it('should remove lyricist when set to null', () => {
-        tagger.lyricist = 'Lyricist Name'
-        tagger.lyricist = null
-        expect(tagger.lyricist).toBeNull()
+        taggedFile.lyricist = 'Lyricist Name'
+        taggedFile.lyricist = null
+        expect(taggedFile.lyricist).toBeNull()
       })
     })
 
     describe('publisher', () => {
       it('should get publisher', () => {
-        const publisher = tagger.publisher
+        const publisher = taggedFile.publisher
         expect(publisher === null || typeof publisher === 'string').toBe(true)
       })
 
       it('should set publisher', () => {
-        tagger.publisher = 'Publisher Name'
-        expect(tagger.publisher).toBe('Publisher Name')
+        taggedFile.publisher = 'Publisher Name'
+        expect(taggedFile.publisher).toBe('Publisher Name')
       })
 
       it('should remove publisher when set to null', () => {
-        tagger.publisher = 'Publisher Name'
-        tagger.publisher = null
-        expect(tagger.publisher).toBeNull()
+        taggedFile.publisher = 'Publisher Name'
+        taggedFile.publisher = null
+        expect(taggedFile.publisher).toBeNull()
       })
     })
 
     describe('lyrics', () => {
       it('should get lyrics', () => {
-        const lyrics = tagger.lyrics
+        const lyrics = taggedFile.lyrics
         expect(lyrics === null || typeof lyrics === 'string').toBe(true)
       })
 
       it('should set lyrics', () => {
-        tagger.lyrics = 'Test lyrics\nLine 2'
-        expect(tagger.lyrics).toBe('Test lyrics\nLine 2')
+        taggedFile.lyrics = 'Test lyrics\nLine 2'
+        expect(taggedFile.lyrics).toBe('Test lyrics\nLine 2')
       })
 
       it('should remove lyrics when set to null', () => {
-        tagger.lyrics = 'Test lyrics'
-        tagger.lyrics = null
-        expect(tagger.lyrics).toBeNull()
+        taggedFile.lyrics = 'Test lyrics'
+        taggedFile.lyrics = null
+        expect(taggedFile.lyrics).toBeNull()
       })
     })
 
     describe('copyright', () => {
       it('should get copyright', () => {
-        const copyright = tagger.copyright
+        const copyright = taggedFile.copyright
         expect(copyright === null || typeof copyright === 'string').toBe(true)
       })
 
       it('should set copyright', () => {
-        tagger.copyright = '© 2024 Test'
-        expect(tagger.copyright).toBe('© 2024 Test')
+        taggedFile.copyright = '© 2024 Test'
+        expect(taggedFile.copyright).toBe('© 2024 Test')
       })
 
       it('should remove copyright when set to null', () => {
-        tagger.copyright = '© 2024 Test'
-        tagger.copyright = null
-        expect(tagger.copyright).toBeNull()
+        taggedFile.copyright = '© 2024 Test'
+        taggedFile.copyright = null
+        expect(taggedFile.copyright).toBeNull()
       })
     })
 
     describe('rating', () => {
       it('should get rating', () => {
-        const rating = tagger.rating
+        const rating = taggedFile.rating
         expect(rating === null || typeof rating === 'number').toBe(true)
       })
 
       it('should set rating', () => {
-        tagger.rating = 3
-        expect(tagger.rating).toBe(3)
+        taggedFile.rating = 3
+        expect(taggedFile.rating).toBe(3)
       })
 
       it('should remove rating when set to null', () => {
-        tagger.rating = 3
-        tagger.rating = null
-        expect(tagger.rating).toBeNull()
+        taggedFile.rating = 3
+        taggedFile.rating = null
+        expect(taggedFile.rating).toBeNull()
       })
 
       it('should throw for out-of-range rating', () => {
         expect(() => {
-          tagger.rating = 6 as any
+          taggedFile.rating = 6 as any
         }).toThrow()
       })
     })
 
     describe('replay gain', () => {
       it('should get track replay gain', () => {
-        const gain = tagger.trackReplayGain
+        const gain = taggedFile.trackReplayGain
         expect(gain === null || typeof gain === 'number').toBe(true)
       })
 
       it('should set track replay gain', () => {
-        tagger.trackReplayGain = -5.5
-        expect(tagger.trackReplayGain).toBe(-5.5)
+        taggedFile.trackReplayGain = -5.5
+        expect(taggedFile.trackReplayGain).toBe(-5.5)
       })
 
       it('should remove track replay gain when set to null', () => {
-        tagger.trackReplayGain = -5.5
-        tagger.trackReplayGain = null
-        expect(tagger.trackReplayGain).toBeNull()
+        taggedFile.trackReplayGain = -5.5
+        taggedFile.trackReplayGain = null
+        expect(taggedFile.trackReplayGain).toBeNull()
       })
 
       it('should get track replay peak', () => {
-        const peak = tagger.trackReplayPeak
+        const peak = taggedFile.trackReplayPeak
         expect(peak === null || typeof peak === 'number').toBe(true)
       })
 
       it('should set track replay peak', () => {
-        tagger.trackReplayPeak = 0.95
-        expect(tagger.trackReplayPeak).toBe(0.95)
+        taggedFile.trackReplayPeak = 0.95
+        expect(taggedFile.trackReplayPeak).toBe(0.95)
       })
 
       it('should remove track replay peak when set to null', () => {
-        tagger.trackReplayPeak = 0.95
-        tagger.trackReplayPeak = null
-        expect(tagger.trackReplayPeak).toBeNull()
+        taggedFile.trackReplayPeak = 0.95
+        taggedFile.trackReplayPeak = null
+        expect(taggedFile.trackReplayPeak).toBeNull()
       })
 
       it('should get album replay gain', () => {
-        const gain = tagger.albumReplayGain
+        const gain = taggedFile.albumReplayGain
         expect(gain === null || typeof gain === 'number').toBe(true)
       })
 
       it('should set album replay gain', () => {
-        tagger.albumReplayGain = -6.0
-        expect(tagger.albumReplayGain).toBe(-6.0)
+        taggedFile.albumReplayGain = -6.0
+        expect(taggedFile.albumReplayGain).toBe(-6.0)
       })
 
       it('should remove album replay gain when set to null', () => {
-        tagger.albumReplayGain = -6.0
-        tagger.albumReplayGain = null
-        expect(tagger.albumReplayGain).toBeNull()
+        taggedFile.albumReplayGain = -6.0
+        taggedFile.albumReplayGain = null
+        expect(taggedFile.albumReplayGain).toBeNull()
       })
 
       it('should get album replay peak', () => {
-        const peak = tagger.albumReplayPeak
+        const peak = taggedFile.albumReplayPeak
         expect(peak === null || typeof peak === 'number').toBe(true)
       })
 
       it('should set album replay peak', () => {
-        tagger.albumReplayPeak = 0.98
-        expect(tagger.albumReplayPeak).toBe(0.98)
+        taggedFile.albumReplayPeak = 0.98
+        expect(taggedFile.albumReplayPeak).toBe(0.98)
       })
 
       it('should remove album replay peak when set to null', () => {
-        tagger.albumReplayPeak = 0.98
-        tagger.albumReplayPeak = null
-        expect(tagger.albumReplayPeak).toBeNull()
+        taggedFile.albumReplayPeak = 0.98
+        taggedFile.albumReplayPeak = null
+        expect(taggedFile.albumReplayPeak).toBeNull()
       })
     })
 
     describe('pictures', () => {
       it('should get pictures', () => {
-        const pictures = tagger.pictures
+        const pictures = taggedFile.pictures
         expect(pictures === null || Array.isArray(pictures)).toBe(true)
       })
 
       it('should set pictures', () => {
         const pictureData = new Uint8Array([1, 2, 3, 4, 5])
         const picture = new MetaPicture('image/jpeg', pictureData, 'Cover')
-        tagger.pictures = [picture]
+        taggedFile.pictures = [picture]
 
-        const pictures = tagger.pictures
+        const pictures = taggedFile.pictures
         expect(pictures).not.toBeNull()
         expect(pictures!.length).toBe(1)
         expect(pictures![0].mimeType).toBe('image/jpeg')
@@ -443,9 +436,9 @@ for (const sample of samples) {
       it('should remove pictures when set to null', () => {
         const pictureData = new Uint8Array([1, 2, 3])
         const picture = new MetaPicture('image/png', pictureData)
-        tagger.pictures = [picture]
-        tagger.pictures = null
-        expect(tagger.pictures).toBeNull()
+        taggedFile.pictures = [picture]
+        taggedFile.pictures = null
+        expect(taggedFile.pictures).toBeNull()
       })
     })
   })

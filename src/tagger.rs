@@ -716,19 +716,24 @@ impl MusicTagger {
     ///
     /// @throws If no file or buffer loaded
     #[napi(getter, ts_type = "(): 1 | 2 | 3 | 4 | 5 | null")]
-    pub fn rating(&self) -> Result<Option<u8>> {
-        self.tag(|tag| match tag.ratings().next().map(|p| p.rating) {
+    pub fn rating(&self) -> Result<Either<u8, Null>> {
+        let rating = self.tag(|tag| match tag.ratings().next().map(|p| p.rating) {
             Some(StarRating::One) => Some(1),
             Some(StarRating::Two) => Some(2),
             Some(StarRating::Three) => Some(3),
             Some(StarRating::Four) => Some(4),
             Some(StarRating::Five) => Some(5),
             _ => None,
+        })?;
+
+        Ok(match rating {
+            Some(value) => Either::A(value),
+            None => Either::B(Null),
         })
     }
 
     #[napi(setter)]
-    pub fn set_rating(&mut self, rating: Either<u8, Null>) -> Result<()> {
+    pub fn set_rating(&mut self, rating: Either<u32, Null>) -> Result<()> {
         let star_rating = match rating {
             Either::A(value) => Some(
                 match value {

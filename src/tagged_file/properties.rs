@@ -59,7 +59,7 @@ impl TaggedFile {
         }
 
         let file_size_bytes = match &self.inner {
-            TaggedFileInner::Buffer => return Ok(None),
+            TaggedFileInner::Buffer { source_len } => *source_len as f64,
             TaggedFileInner::Path(path) => std::fs::metadata(path)
                 .map(|m| m.len() as f64)
                 .unwrap_or(0.0),

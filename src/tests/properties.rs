@@ -1,4 +1,14 @@
-use crate::tests::tagged_file_from_path;
+use std::time::Duration;
+
+use lofty::{
+    file::{FileType, TaggedFile as LoftyTaggedFile},
+    properties::FileProperties,
+};
+
+use crate::{
+    tagged_file::{TaggedFile, TaggedFileInner},
+    tests::tagged_file_from_path,
+};
 
 // ── audio properties ────────────────────────────────────────────────────
 
@@ -36,4 +46,20 @@ fn test_wav_properties() {
     assert!(t.bit_depth().unwrap().unwrap_or(0) > 0);
     assert!(t.sample_rate().unwrap().unwrap_or(0) > 0);
     assert!(t.channels().unwrap().unwrap_or(0) > 0);
+}
+
+#[test]
+fn test_buffer_bitrate_falls_back_to_source_length() {
+    let t = TaggedFile::new_for_test(
+        LoftyTaggedFile::new(
+            FileType::Mpeg,
+            FileProperties::new(Duration::from_secs(10), None, None, None, None, None, None),
+            Vec::new(),
+        ),
+        TaggedFileInner::Buffer {
+            source_len: 160_000,
+        },
+    );
+
+    assert_eq!(t.bit_rate().unwrap(), Some(128));
 }

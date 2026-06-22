@@ -63,6 +63,7 @@
     "build:wasm": "napi build --release --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:rebuild": "pnpm run build:debug && vitest run",
     "play": "vite serve playground",
@@ -84,10 +85,5 @@
     "vite": "^7.2.7",
     "vitest": "^4.0.15"
   },
-  "packageManager": "pnpm@10.24.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  }
+  "packageManager": "pnpm@10.33.4"
 }

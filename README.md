@@ -90,7 +90,7 @@ const modifiedBufferSync = tagged_file.saveSync(buffer)
 
 // Display album art
 const pictures = tagged_file.pictures
-if (pictures.length > 0) {
+if (pictures && pictures.length > 0) {
   const picture = pictures[0]
   const blob = new Blob([picture.data], { type: picture.mimeType })
   const url = URL.createObjectURL(blob)
@@ -100,7 +100,7 @@ if (pictures.length > 0) {
 
 ## API Reference
 
-### MusicTagger
+### TaggedFile
 
 #### Loading Files
 
@@ -110,7 +110,9 @@ if (pictures.length > 0) {
 
 #### Saving Changes
 
-- `save(bufferOrPath?: Uint8Array | string | null): Promise<Uint8Array | void>` - Save changes, if it's loaded from buffer, you must provide the original buffer, and the updated copy will be returned. In Node.js, saves to original path by default, or to path provided `bufferOrPath` when provided. In browser/wasm, provide path to `bufferOrPath` is not supported. 
+- `save(bufferOrPath?: Uint8Array | string | null): Promise<Uint8Array | void>` - Save changes asynchronously. Files loaded from a path are saved to the original path by default, or to `bufferOrPath` when a path is provided. Files loaded from a buffer require the original buffer and return an updated copy.
+- `saveSync(bufferOrPath?: Uint8Array | string | null): Uint8Array | undefined` - Synchronous version of `save`.
+- `path(): string | null` - Return the source path for path-loaded files, or `null` for buffer-loaded files.
 
 #### Metadata Properties (Read/Write)
 
@@ -128,37 +130,46 @@ All properties can be read and written. Set to `null` to remove a tag.
 - `trackNumber: number | null`
 - `trackTotal: number | null`
 - `discNumber: number | null`
-- `discTotal: number | null`
+- `discsTotal: number | null`
+- `conductor: string | null`
+- `lyricist: string | null`
+- `publisher: string | null`
+- `lyrics: string | null`
+- `copyright: string | null`
+- `trackReplayGain: number | null`
+- `trackReplayPeak: number | null`
+- `albumReplayGain: number | null`
+- `albumReplayPeak: number | null`
+- `pictures: MetaPicture[] | null`
 
 #### Audio Properties (Read-Only)
 
-- `duration: number` - Duration in seconds
-- `overallBitrate: number` - Overall bitrate in kbps
-- `audioBitrate: number` - Audio bitrate in kbps
-- `sampleRate: number` - Sample rate in Hz
-- `bitDepth: number` - Bit depth
-- `channels: number` - Number of channels
-- `audioQuality: 'HQ' | 'SQ' | 'HiRes' | null` - Audio quality classification
+- `quality: 'HQ' | 'SQ' | 'HiRes'` - Audio quality classification
+- `bitDepth: number | null` - Bit depth
+- `bitRate: number | null` - Audio bitrate in kbps
+- `sampleRate: number | null` - Sample rate in Hz
+- `channels: number | null` - Number of channels
+- `duration: number` - Duration in milliseconds
+- `tagType: 'AIFF' | 'APE' | 'ID3V1' | 'ID3V2' | 'ILST' | 'RIFF' | 'VORBIS' | null` - Metadata tag type
 
 #### Album Art
 
-- `pictures: MetaPicture[]` - Array of embedded pictures
-- `setPictures(pictures: MetaPicture[]): void` - Replace all pictures
+- `pictures: MetaPicture[] | null` - Embedded pictures. Set to `null` to remove all pictures.
 
 #### ReplayGain
 
-- `replayGainTrackGain: number | null`
-- `replayGainTrackPeak: number | null`
-- `replayGainAlbumGain: number | null`
-- `replayGainAlbumPeak: number | null`
+- `trackReplayGain: number | null`
+- `trackReplayPeak: number | null`
+- `albumReplayGain: number | null`
+- `albumReplayPeak: number | null`
 
 ### MetaPicture
 
 Properties for album art and embedded images:
 
-- `pictureType: PictureType` - Type of picture (e.g., 'CoverFront', 'CoverBack')
-- `mimeType: string` - MIME type (e.g., 'image/jpeg', 'image/png')
-- `description: string | null` - Optional description
+- `coverType: PictureType` - Type of picture
+- `mimeType?: string` - MIME type (e.g., 'image/jpeg', 'image/png')
+- `description?: string` - Optional description
 - `data: Uint8Array` - Image data
 
 #### PictureType Values

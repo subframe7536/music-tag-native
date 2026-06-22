@@ -166,7 +166,7 @@ export declare class TaggedFile {
   static loadFromPathSync(path: string): TaggedFile
   /**
    * Load music file from a byte buffer, the file buffer won't be stored in
-   * the TaggedFile instace.
+   * the TaggedFile instance.
    *
    * @param buffer A Uint8Array containing the audio file data
    *

@@ -48,7 +48,7 @@ fn save_to_custom_path_impl(
 }
 
 pub(crate) enum TaggedFileInner {
-    Buffer,
+    Buffer { source_len: usize },
     Path(String),
 }
 
@@ -112,6 +112,13 @@ pub struct TaggedFile {
     inner: TaggedFileInner,
 }
 
+#[cfg(test)]
+impl TaggedFile {
+    pub(crate) fn new_for_test(file: LoftyTaggedFile, inner: TaggedFileInner) -> Self {
+        Self { file, inner }
+    }
+}
+
 #[napi]
 impl TaggedFile {
     /// Load music file from a file path
@@ -149,7 +156,7 @@ impl TaggedFile {
     }
 
     /// Load music file from a byte buffer, the file buffer won't be stored in
-    /// the TaggedFile instace.
+    /// the TaggedFile instance.
     ///
     /// @param buffer A Uint8Array containing the audio file data
     ///
@@ -164,7 +171,9 @@ impl TaggedFile {
 
         Ok(TaggedFile {
             file,
-            inner: TaggedFileInner::Buffer,
+            inner: TaggedFileInner::Buffer {
+                source_len: buffer.len(),
+            },
         })
     }
 
@@ -175,7 +184,7 @@ impl TaggedFile {
     #[napi]
     pub fn path(&self) -> Option<&String> {
         match &self.inner {
-            TaggedFileInner::Buffer => None,
+            TaggedFileInner::Buffer { .. } => None,
             TaggedFileInner::Path(path) => Some(path),
         }
     }
@@ -209,7 +218,7 @@ impl TaggedFile {
         match buffer_or_path {
             None => {
                 match &self.inner {
-                    TaggedFileInner::Buffer => {
+                    TaggedFileInner::Buffer { .. } => {
                         Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                     }
                     TaggedFileInner::Path(path) => {
@@ -240,7 +249,7 @@ impl TaggedFile {
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, TaggedFileInner::Buffer) {
+                    if matches!(&self.inner, TaggedFileInner::Buffer { .. }) {
                         return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
                     }
 
@@ -288,7 +297,7 @@ impl TaggedFile {
     ) -> Result<Either<(), Uint8Array>> {
         match buffer_or_path {
             None => match &self.inner {
-                TaggedFileInner::Buffer => {
+                TaggedFileInner::Buffer { .. } => {
                     Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                 }
                 TaggedFileInner::Path(path) => {
@@ -313,13 +322,13 @@ impl TaggedFile {
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, TaggedFileInner::Buffer) {
+                    if matches!(&self.inner, TaggedFileInner::Buffer { .. }) {
                         return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
                     }
 
                     let src_path = match &self.inner {
                         TaggedFileInner::Path(current) => Some(current.as_str()),
-                        TaggedFileInner::Buffer => None,
+                        TaggedFileInner::Buffer { .. } => None,
                     };
 
                     save_to_custom_path_impl(src_path, &path, &self.file)?;

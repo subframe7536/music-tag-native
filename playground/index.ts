@@ -173,7 +173,7 @@ async function loadSample(sample: typeof samples[0]) {
     const arrayBuffer = await response.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
 
-    const tagger = TaggedFile.loadFromBuffer(buffer)
+    const tagger = TaggedFile.loadSync(buffer)
 
     state.tagger = tagger
     state.currentSample = sample.format

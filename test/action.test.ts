@@ -9,97 +9,97 @@ import { base } from './const'
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
 
 describe('TaggedFile', () => {
-  describe.skipIf(isWasi)('loadFromPath', () => {
+  describe.skipIf(isWasi)('load', () => {
     it('should load an MP3 file', async () => {
       const path = join(base, 'mp3.mp3')
-      const taggedFile = await TaggedFile.loadFromPath(path);
+      const taggedFile = await TaggedFile.load(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a FLAC file', async () => {
       const path = join(base, 'flac.flac')
-      const taggedFile = await TaggedFile.loadFromPath(path);
+      const taggedFile = await TaggedFile.load(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load an OGG/Opus file', async () => {
       const path = join(base, 'ogg.opus')
-      const taggedFile = await TaggedFile.loadFromPath(path);
+      const taggedFile = await TaggedFile.load(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a WAV file', async () => {
       const path = join(base, 'wav.wav')
-      const taggedFile = await TaggedFile.loadFromPath(path);
+      const taggedFile = await TaggedFile.load(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should throw error for non-existent file', async () => {
       await expect(async () => {
-        await TaggedFile.loadFromPath('non-existent-file.mp3')
+        await TaggedFile.load('non-existent-file.mp3')
       }).rejects.toThrow()
     })
 
     it('should throw error for invalid audio file', async () => {
       await expect(async () => {
-        await TaggedFile.loadFromPath(__filename) // Try to load the test file itself
+        await TaggedFile.load(__filename) // Try to load the test file itself
       }).rejects.toThrow()
     })
   })
 
-  describe.skipIf(isWasi)('loadFromPathSync', () => {
+  describe.skipIf(isWasi)('loadSync', () => {
     it('should load an MP3 file', () => {
       const path = join(base, 'mp3.mp3')
-      const taggedFile = TaggedFile.loadFromPathSync(path);
+      const taggedFile = TaggedFile.loadSync(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a FLAC file', () => {
       const path = join(base, 'flac.flac')
-      const taggedFile = TaggedFile.loadFromPathSync(path);
+      const taggedFile = TaggedFile.loadSync(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load an OGG/Opus file', () => {
       const path = join(base, 'ogg.opus')
-      const taggedFile = TaggedFile.loadFromPathSync(path);
+      const taggedFile = TaggedFile.loadSync(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a WAV file', () => {
       const path = join(base, 'wav.wav')
-      const taggedFile = TaggedFile.loadFromPathSync(path);
+      const taggedFile = TaggedFile.loadSync(path);
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should throw error for non-existent file', () => {
       expect(() => {
-        TaggedFile.loadFromPathSync('non-existent-file.mp3')
+        TaggedFile.loadSync('non-existent-file.mp3')
       }).toThrow()
     })
 
     it('should throw error for invalid audio file', () => {
       expect(() => {
-        TaggedFile.loadFromPathSync(__filename) // Try to load the test file itself
+        TaggedFile.loadSync(__filename) // Try to load the test file itself
       }).toThrow()
     })
   })
 
-  describe('loadFromBuffer', () => {
+  describe('loadSync', () => {
     it('should load from buffer', () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadFromBuffer(uint8Array)
+      const taggedFile = TaggedFile.loadSync(uint8Array)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
@@ -108,7 +108,7 @@ describe('TaggedFile', () => {
       const invalidBuffer = new Uint8Array([1, 2, 3, 4, 5])
 
       expect(() => {
-        TaggedFile.loadFromBuffer(invalidBuffer)
+        TaggedFile.loadSync(invalidBuffer)
       }).toThrow()
     })
   })
@@ -119,7 +119,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadFromBuffer(uint8Array)
+      const taggedFile = TaggedFile.loadSync(uint8Array)
       taggedFile.title = 'New Title'
       const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
 
@@ -134,7 +134,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadFromBuffer(uint8Array)
+      const taggedFile = TaggedFile.loadSync(uint8Array)
       taggedFile.title = 'New Title'
       const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
 
@@ -150,12 +150,12 @@ describe('TaggedFile', () => {
       copyFileSync(sourcePath, path)
 
       try {
-        const taggedFile = await TaggedFile.loadFromPath(path);
+        const taggedFile = await TaggedFile.load(path);
         taggedFile.title = 'Saved Title'
 
         await taggedFile.save();
 
-        const verifyTaggedFile = await TaggedFile.loadFromPath(path);
+        const verifyTaggedFile = await TaggedFile.load(path);
         expect(verifyTaggedFile.title).toBe('Saved Title')
       } finally {
         rmSync(path, { force: true })
@@ -165,13 +165,13 @@ describe('TaggedFile', () => {
     it('should save to custom path', async () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
-      const taggedFile = await TaggedFile.loadFromPath(path);
+      const taggedFile = await TaggedFile.load(path);
       taggedFile.title = 'Saved Custom Path Title'
 
       await taggedFile.save(targetPath);
 
       try {
-        const newTaggedFile = await TaggedFile.loadFromPath(targetPath);
+        const newTaggedFile = await TaggedFile.load(targetPath);
         expect(newTaggedFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
@@ -186,12 +186,12 @@ describe('TaggedFile', () => {
       copyFileSync(sourcePath, path)
 
       try {
-        const taggedFile = TaggedFile.loadFromPathSync(path);
+        const taggedFile = TaggedFile.loadSync(path);
         taggedFile.title = 'Saved Title'
 
         taggedFile.saveSync();
 
-        const verifyTaggedFile = TaggedFile.loadFromPathSync(path);
+        const verifyTaggedFile = TaggedFile.loadSync(path);
         expect(verifyTaggedFile.title).toBe('Saved Title')
       } finally {
         rmSync(path, { force: true })
@@ -201,13 +201,13 @@ describe('TaggedFile', () => {
     it('should save to custom path', () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
-      const taggedFile = TaggedFile.loadFromPathSync(path);
+      const taggedFile = TaggedFile.loadSync(path);
       taggedFile.title = 'Saved Custom Path Title'
 
       taggedFile.saveSync(targetPath);
 
       try {
-        const newTaggedFile = TaggedFile.loadFromPathSync(targetPath);
+        const newTaggedFile = TaggedFile.loadSync(targetPath);
         expect(newTaggedFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
@@ -221,7 +221,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadFromBuffer(uint8Array);
+      const taggedFile = TaggedFile.loadSync(uint8Array);
 
       // Modify metadata
       taggedFile.title = 'Modified Title'
@@ -239,7 +239,7 @@ describe('TaggedFile', () => {
       const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
 
       // Create new tagger and load the modified buffer
-      const newTaggedFile = TaggedFile.loadFromBuffer(newBuffer);
+      const newTaggedFile = TaggedFile.loadSync(newBuffer);
 
       // Verify persisted changes
       expect(newTaggedFile.title).toBe('Modified Title')
@@ -253,7 +253,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadFromBuffer(uint8Array);
+      const taggedFile = TaggedFile.loadSync(uint8Array);
 
       // Modify metadata
       taggedFile.title = 'Modified Title'
@@ -271,7 +271,7 @@ describe('TaggedFile', () => {
       const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
 
       // Create new tagger and load the modified buffer
-      const newTaggedFile = TaggedFile.loadFromBuffer(newBuffer);
+      const newTaggedFile = TaggedFile.loadSync(newBuffer);
 
       // Verify persisted changes
       expect(newTaggedFile.title).toBe('Modified Title')
@@ -286,7 +286,7 @@ describe('TaggedFile', () => {
       for (const file of formats) {
         const path = join(base, file)
 
-        const taggedFile = await TaggedFile.loadFromPath(path);
+        const taggedFile = await TaggedFile.load(path);
         expect(taggedFile.tagType).toBeTruthy()
         expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
       }
@@ -298,7 +298,7 @@ describe('TaggedFile', () => {
       for (const file of formats) {
         const path = join(base, file)
 
-        const taggedFile = TaggedFile.loadFromPathSync(path);
+        const taggedFile = TaggedFile.loadSync(path);
         expect(taggedFile.tagType).toBeTruthy()
         expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
       }

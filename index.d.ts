@@ -143,41 +143,34 @@ export declare class TaggedFile {
   get pictures(): Array<MetaPicture> | null
   set pictures(pictures: Array<MetaPicture> | null)
   /**
-   * Load music file from a file path
+   * Load music file from a file path or byte buffer
    *
-   * @param path The file system path to the audio file
-   *
-   * @throws If the path doesn't exist or isn't accessible
-   * @throws If the file doesn't contain a valid audio format
-   * @throws If runs in WebAssembly environments (due to file system restrictions).
-   */
-  static loadFromPath(path: string): Promise<TaggedFile>
-  /**
-   * Load music file from a file path
-   *
-   * This is the synchronous version of {@link loadFromPath}
-   *
-   * @param path The file system path to the audio file
+   * @param source The file system path or a Uint8Array containing the audio file data
    *
    * @throws If the path doesn't exist or isn't accessible
    * @throws If the file doesn't contain a valid audio format
    * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
-  static loadFromPathSync(path: string): TaggedFile
+  static load(path: string): Promise<TaggedFile>
+  static load(buffer: Uint8Array): Promise<TaggedFile>
   /**
-   * Load music file from a byte buffer, the file buffer won't be stored in
-   * the TaggedFile instance.
+   * Load music file from a file path or byte buffer
    *
-   * @param buffer A Uint8Array containing the audio file data
+   * This is the synchronous version of {@link load}
    *
-   * @throws If the buffer doesn't contain a valid audio file
+   * @param source The file system path or a Uint8Array containing the audio file data
+   *
+   * @throws If the path doesn't exist or isn't accessible
+   * @throws If the file doesn't contain a valid audio format
+   * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
-  static loadFromBuffer(buffer: Uint8Array): TaggedFile
+  static loadSync(path: string): TaggedFile
+  static loadSync(buffer: Uint8Array): TaggedFile
   /**
    * Current audio file path
    *
-   * For files loaded via `loadFromPath()`, this returns the file path.
-   * For files loaded via `loadFromBuffer()`, this returns `null`.
+   * For files loaded from path, this returns the file path.
+   * For files loaded from buffer, this returns `null`.
    */
   path(): string | null
   /**
@@ -191,7 +184,8 @@ export declare class TaggedFile {
    * @throws If custom path is provided in WebAssembly environments
    * @throws If saving fails due to file format constraints
    */
-  save(bufferOrPath?: Uint8Array | string | undefined | null): Promise<Uint8Array | void>
+  save(path?: string | null): Promise<void>
+  save(buffer: Uint8Array): Promise<Uint8Array>
   /**
    * Save metadata changes to the provided buffer, existing path, or a custom path
    *
@@ -205,5 +199,6 @@ export declare class TaggedFile {
    * @throws If custom path is provided in WebAssembly environments
    * @throws If saving fails due to file format constraints
    */
-  saveSync(bufferOrPath?: Uint8Array | string | undefined | null): undefined | Uint8Array
+  saveSync(path?: string | null): void
+  saveSync(buffer: Uint8Array): Uint8Array
 }

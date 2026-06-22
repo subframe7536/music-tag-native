@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use napi::Either;
+
 use crate::tagged_file::TaggedFile;
 
 mod file;
@@ -15,10 +17,10 @@ fn samples_dir() -> PathBuf {
 
 fn tagged_file_from_path(name: &str) -> TaggedFile {
     let path = samples_dir().join(name).to_str().unwrap().to_string();
-    TaggedFile::load_from_path_sync(path).expect("load_from_path failed")
+    TaggedFile::load_sync(Either::B(path)).expect("load failed")
 }
 
 fn tagged_file_from_buffer(name: &str) -> TaggedFile {
     let data: Vec<u8> = std::fs::read(samples_dir().join(name)).expect("read failed");
-    TaggedFile::load_from_buffer(data.into()).expect("load_from_buffer failed")
+    TaggedFile::load_sync(Either::A(data.into())).expect("load_sync failed")
 }

@@ -40,9 +40,9 @@ bun add music-tag-native
 import { TaggedFile } from 'music-tag-native'
 
 // Load from file path
-const tagged_file = await TaggedFile.loadFromPath('/path/to/audio/file.mp3')
+const tagged_file = await TaggedFile.load('/path/to/audio/file.mp3')
 // synchronous:
-const tagged_file_sync = TaggedFile.loadFromPathSync('/path/to/audio/file.mp3')
+const tagged_file_sync = TaggedFile.loadSync('/path/to/audio/file.mp3')
 
 // Read metadata
 console.log(tagged_file.title)
@@ -76,8 +76,8 @@ const response = await fetch('/path/to/audio/file.mp3')
 const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
-// `loadFromBuffer` is synchronous only
-const tagged_file = TaggedFile.loadFromBuffer(buffer)
+// `loadSync` is synchronous only
+const tagged_file = TaggedFile.loadSync(buffer)
 
 // Read and modify metadata
 console.log(tagged_file.title)
@@ -104,9 +104,10 @@ if (pictures && pictures.length > 0) {
 
 #### Loading Files
 
-- `TaggedFile.loadFromPath(path: string): Promise<TaggedFile>` - Load audio file from path (Node.js only)
-- `TaggedFile.loadFromPathSync(path: string): TaggedFile` - Load audio file from path (Node.js only)
-- `TaggedFile.loadFromBuffer(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
+- `TaggedFile.load(path: string): Promise<TaggedFile>` - Load audio file from path (Node.js only)
+- `TaggedFile.loadSync(path: string): TaggedFile` - Load audio file from path (Node.js only)
+- `TaggedFile.load(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
+- `TaggedFile.loadSync(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
 
 #### Saving Changes
 

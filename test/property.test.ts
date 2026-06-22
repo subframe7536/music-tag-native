@@ -17,7 +17,7 @@ describe('Audio Properties', () => {
     let taggedFile: TaggedFile
     describe(sample.description, () => {
       beforeEach(() => {
-        taggedFile = TaggedFile.loadFromBuffer(buf);
+        taggedFile = TaggedFile.loadSync(buf);
       })
 
       if ('expectedQuality' in sample) {

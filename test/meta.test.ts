@@ -17,7 +17,7 @@ for (const sample of samples) {
     const buffer = readFileSync(join(base, sample.file))
 
     beforeEach(() => {
-      taggedFile = TaggedFile.loadFromBuffer(buffer);
+      taggedFile = TaggedFile.loadSync(buffer);
     })
 
     describe('title', () => {

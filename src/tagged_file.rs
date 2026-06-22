@@ -70,6 +70,20 @@ fn load_from_path_impl(path: &String) -> Result<TaggedFile> {
     })
 }
 
+fn load_from_buffer_impl(buffer: Uint8Array) -> Result<TaggedFile> {
+    let source_len = buffer.len();
+    let file = Probe::new(Cursor::new(&buffer))
+        .guess_file_type()
+        .map_err(|e| Error::new(Status::InvalidArg, e))?
+        .read()
+        .map_err(|e| Error::new(Status::InvalidArg, e))?;
+
+    Ok(TaggedFile {
+        file,
+        inner: TaggedFileInner::Buffer { source_len },
+    })
+}
+
 #[napi]
 impl Task for AsyncLoadPath {
     type Output = TaggedFile;
@@ -121,66 +135,62 @@ impl TaggedFile {
 
 #[napi]
 impl TaggedFile {
-    /// Load music file from a file path
+    /// Load music file from a file path or byte buffer
     ///
-    /// @param path The file system path to the audio file
-    ///
-    /// @throws If the path doesn't exist or isn't accessible
-    /// @throws If the file doesn't contain a valid audio format
-    /// @throws If runs in WebAssembly environments (due to file system restrictions).
-    #[napi]
-    pub fn load_from_path(path: String) -> Result<AsyncTask<AsyncLoadPath>> {
-        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
-            return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
-        }
-
-        Ok(AsyncTask::new(AsyncLoadPath { path }))
-    }
-
-    /// Load music file from a file path
-    ///
-    /// This is the synchronous version of {@link loadFromPath}
-    ///
-    /// @param path The file system path to the audio file
+    /// @param source The file system path or a Uint8Array containing the audio file data
     ///
     /// @throws If the path doesn't exist or isn't accessible
     /// @throws If the file doesn't contain a valid audio format
     /// @throws If runs in WebAssembly environments (due to file system restrictions).
-    #[napi]
-    pub fn load_from_path_sync(path: String) -> Result<TaggedFile> {
-        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
-            return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
-        }
+    #[napi(ts_type = r#"(path: string): Promise<TaggedFile>
+  static load(buffer: Uint8Array): Promise<TaggedFile>"#)]
+    pub fn load(
+        env: &Env,
+        source: Either<Uint8Array, String>,
+    ) -> Result<Either<PromiseRaw<'_, TaggedFile>, AsyncTask<AsyncLoadPath>>> {
+        match source {
+            Either::A(buffer) => Ok(Either::A(PromiseRaw::resolve(
+                env,
+                load_from_buffer_impl(buffer)?,
+            )?)),
+            Either::B(path) => {
+                if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                }
 
-        load_from_path_impl(&path)
+                Ok(Either::B(AsyncTask::new(AsyncLoadPath { path })))
+            }
+        }
     }
 
-    /// Load music file from a byte buffer, the file buffer won't be stored in
-    /// the TaggedFile instance.
+    /// Load music file from a file path or byte buffer
     ///
-    /// @param buffer A Uint8Array containing the audio file data
+    /// This is the synchronous version of {@link load}
     ///
-    /// @throws If the buffer doesn't contain a valid audio file
-    #[napi]
-    pub fn load_from_buffer(buffer: Uint8Array) -> Result<TaggedFile> {
-        let file = Probe::new(Cursor::new(&buffer))
-            .guess_file_type()
-            .map_err(|e| Error::new(Status::InvalidArg, e))?
-            .read()
-            .map_err(|e| Error::new(Status::InvalidArg, e))?;
+    /// @param source The file system path or a Uint8Array containing the audio file data
+    ///
+    /// @throws If the path doesn't exist or isn't accessible
+    /// @throws If the file doesn't contain a valid audio format
+    /// @throws If runs in WebAssembly environments (due to file system restrictions).
+    #[napi(ts_type = r#"(path: string): TaggedFile
+  static loadSync(buffer: Uint8Array): TaggedFile"#)]
+    pub fn load_sync(source: Either<Uint8Array, String>) -> Result<TaggedFile> {
+        match source {
+            Either::A(buffer) => load_from_buffer_impl(buffer),
+            Either::B(path) => {
+                if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                }
 
-        Ok(TaggedFile {
-            file,
-            inner: TaggedFileInner::Buffer {
-                source_len: buffer.len(),
-            },
-        })
+                load_from_path_impl(&path)
+            }
+        }
     }
 
     /// Current audio file path
     ///
-    /// For files loaded via `loadFromPath()`, this returns the file path.
-    /// For files loaded via `loadFromBuffer()`, this returns `null`.
+    /// For files loaded from path, this returns the file path.
+    /// For files loaded from buffer, this returns `null`.
     #[napi]
     pub fn path(&self) -> Option<&String> {
         match &self.inner {
@@ -208,7 +218,8 @@ impl TaggedFile {
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
     /// @throws If saving fails due to file format constraints
-    #[napi(ts_return_type = "Promise<Uint8Array | void>")]
+    #[napi(ts_type = r#"(path?: string | null): Promise<void>
+  save(buffer: Uint8Array): Promise<Uint8Array>"#)]
     #[allow(clippy::type_complexity)]
     pub fn save(
         &self,
@@ -290,7 +301,8 @@ impl TaggedFile {
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
     /// @throws If saving fails due to file format constraints
-    #[napi]
+    #[napi(ts_type = r#"(path?: string | null): void
+  saveSync(buffer: Uint8Array): Uint8Array"#)]
     pub fn save_sync(
         &self,
         buffer_or_path: Option<Either<Uint8Array, String>>,

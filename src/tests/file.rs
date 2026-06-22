@@ -78,8 +78,8 @@ fn test_dont_load_garbage_buffer() {
 #[test]
 fn test_mp3_buffer_save_round_trip() {
     let buffer: Vec<u8> = std::fs::read(samples_dir().join("mp3.mp3")).expect("read failed");
-    let mut t = TaggedFile::load_from_buffer(Uint8Array::with_data_copied(&buffer))
-        .expect("load_from_buffer failed");
+    let mut t = TaggedFile::load_sync(Either::A(Uint8Array::with_data_copied(&buffer)))
+        .expect("load_sync failed");
     t.set_title(Either::A("Rust Test Title".to_string()))
         .unwrap();
 
@@ -87,7 +87,7 @@ fn test_mp3_buffer_save_round_trip() {
         panic!("save_sync did not return a buffer");
     };
 
-    let t2 = TaggedFile::load_from_buffer(saved_buf).expect("load_from_buffer failed");
+    let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
 }
 
@@ -95,8 +95,8 @@ fn test_mp3_buffer_save_round_trip() {
 fn test_mp3_insert_new_tag_save_round_trip() {
     let buffer: Vec<u8> =
         std::fs::read(samples_dir().join("mp3-no-tags.mp3")).expect("read failed");
-    let mut t = TaggedFile::load_from_buffer(Uint8Array::with_data_copied(&buffer))
-        .expect("load_from_buffer failed");
+    let mut t = TaggedFile::load_sync(Either::A(Uint8Array::with_data_copied(&buffer)))
+        .expect("load_sync failed");
     t.set_title(Either::A("Rust Test Title".to_string()))
         .unwrap();
 
@@ -104,15 +104,15 @@ fn test_mp3_insert_new_tag_save_round_trip() {
         panic!("save_sync did not return a buffer");
     };
 
-    let t2 = TaggedFile::load_from_buffer(saved_buf).expect("load_from_buffer failed");
+    let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
 }
 
 #[test]
 fn test_flac_buffer_save_round_trip() {
     let buffer: Vec<u8> = std::fs::read(samples_dir().join("flac.flac")).expect("read failed");
-    let mut t = TaggedFile::load_from_buffer(Uint8Array::with_data_copied(&buffer))
-        .expect("load_from_buffer failed");
+    let mut t = TaggedFile::load_sync(Either::A(Uint8Array::with_data_copied(&buffer)))
+        .expect("load_sync failed");
     t.set_title(Either::A("FLAC Rust Title".to_string()))
         .unwrap();
 
@@ -120,15 +120,15 @@ fn test_flac_buffer_save_round_trip() {
         panic!("save_sync did not return a buffer");
     };
 
-    let t2 = TaggedFile::load_from_buffer(saved_buf).expect("load_from_buffer failed");
+    let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().unwrap().as_deref(), Some("FLAC Rust Title"));
 }
 
 #[test]
 fn test_ogg_buffer_save_round_trip() {
     let buffer: Vec<u8> = std::fs::read(samples_dir().join("ogg.opus")).expect("read failed");
-    let mut t = TaggedFile::load_from_buffer(Uint8Array::with_data_copied(&buffer))
-        .expect("load_from_buffer failed");
+    let mut t = TaggedFile::load_sync(Either::A(Uint8Array::with_data_copied(&buffer)))
+        .expect("load_sync failed");
     t.set_title(Either::A("OGG Rust Title".to_string()))
         .unwrap();
 
@@ -136,6 +136,6 @@ fn test_ogg_buffer_save_round_trip() {
         panic!("save_sync did not return a buffer");
     };
 
-    let t2 = TaggedFile::load_from_buffer(saved_buf).expect("load_from_buffer failed");
+    let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().unwrap().as_deref(), Some("OGG Rust Title"));
 }

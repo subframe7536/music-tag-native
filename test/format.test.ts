@@ -17,7 +17,7 @@ describe.sequential('Cross-format Metadata', () => {
     let taggedFile: TaggedFile;
     describe(sample.description, () => {
       beforeEach(() => {
-        taggedFile = TaggedFile.loadFromBuffer(buf)
+        taggedFile = TaggedFile.loadSync(buf)
       })
 
       it('should read title (string or null)', () => {
@@ -110,7 +110,7 @@ describe.sequential('Cross-format Metadata', () => {
         expect(savedBuffer).toBeInstanceOf(Uint8Array)
         expect(savedBuffer.length).toBeGreaterThan(0)
 
-        const reloadedTaggedFile = TaggedFile.loadFromBuffer(savedBuffer);
+        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer);
         expect(reloadedTaggedFile.title).toBe('Saved Title')
         expect(reloadedTaggedFile.artist).toBe('Saved Artist')
       })
@@ -123,7 +123,7 @@ describe.sequential('Cross-format Metadata', () => {
         expect(savedBuffer).toBeInstanceOf(Uint8Array)
         expect(savedBuffer.length).toBeGreaterThan(0)
 
-        const reloadedTaggedFile = TaggedFile.loadFromBuffer(savedBuffer);
+        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer);
         expect(reloadedTaggedFile.title).toBe('Saved Title')
         expect(reloadedTaggedFile.artist).toBe('Saved Artist')
       })

@@ -1,7 +1,5 @@
-import {
-  MusicFile,
-  type MusicFileInstance,
-} from '../music-tag-native.wasi-browser.js'
+import { MusicFile } from '../music-tag-native.wasi-browser.js'
+import type { MusicFileInstance } from '../music-tag-native.wasi-browser.js'
 import flacSampleUrl from '../samples/flac.flac?url'
 import mp3SampleUrl from '../samples/mp3.mp3?url'
 import oggSampleUrl from '../samples/ogg.opus?url'

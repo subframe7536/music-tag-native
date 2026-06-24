@@ -37,17 +37,19 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "dev": "napi build --watch --target wasm32-wasip1-threads",
+    "dev": "napi build --watch --platform --target wasm32-wasip1-threads",
     "build": "napi build --platform --release --strip",
-    "build:wasm": "napi build --release --target wasm32-wasip1-threads",
+    "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
-    "qa": "oxlint --fix && oxfmt && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "oxc": "oxlint --fix && oxfmt",
+    "qa": "pnpm run oxc && pnpm run typecheck",
     "test": "vitest run",
     "test:rebuild": "pnpm run build:debug && vitest run",
     "play": "vite serve playground",
     "test:watch": "vitest",
     "prepublishOnly": "napi prepublish -t npm",
-    "release": "bumpp -x \"pnpm run test:rebuild\" --all"
+    "release": "pnpm run qa && bumpp -x \"pnpm run test:rebuild\" --all"
   },
   "devDependencies": {
     "@emnapi/core": "^1.7.1",

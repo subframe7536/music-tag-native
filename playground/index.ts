@@ -1,13 +1,11 @@
-// oxlint-disable-next-line no-unused-vars
-import type { TaggedFile as Tagger } from '../index'
-// @ts-expect-error fxxk
-import { TaggedFile } from '../music-tag-native.wasi-browser.js'
+import {
+  TaggedFile,
+  type TaggedFileInstance,
+} from '../music-tag-native.wasi-browser.js'
 import flacSampleUrl from '../samples/flac.flac?url'
 import mp3SampleUrl from '../samples/mp3.mp3?url'
 import oggSampleUrl from '../samples/ogg.opus?url'
 import wavSampleUrl from '../samples/wav.wav?url'
-
-declare class TaggedFile extends Tagger {}
 
 const samples = [
   { name: 'FLAC', format: 'flac', url: flacSampleUrl },
@@ -17,7 +15,7 @@ const samples = [
 ]
 
 interface AppState {
-  tagger: TaggedFile | null
+  tagger: TaggedFileInstance | null
   currentBuffer: Uint8Array | null
   currentSample: string | null
   editMode: boolean
@@ -48,7 +46,7 @@ const elements = {
   downloadBtn: document.querySelector('[data-download]')!,
 }
 
-function readProperties(tagger: TaggedFile) {
+function readProperties(tagger: TaggedFileInstance) {
   return {
     quality: tagger.quality,
     bitDepth: tagger.bitDepth,
@@ -60,7 +58,7 @@ function readProperties(tagger: TaggedFile) {
   }
 }
 
-function readTags(tagger: TaggedFile) {
+function readTags(tagger: TaggedFileInstance) {
   return {
     title: tagger.title,
     artist: tagger.artist,
@@ -139,7 +137,7 @@ function updateButtons() {
   resetBtn.disabled = !state.hasChanges
 }
 
-function renderPictures(tagger: TaggedFile) {
+function renderPictures(tagger: TaggedFileInstance) {
   const pictures = tagger.pictures
 
   if (!pictures || pictures.length === 0) {
@@ -177,6 +175,7 @@ async function loadSample(sample: (typeof samples)[0]) {
     const tagger = TaggedFile.loadSync(buffer)
 
     state.tagger = tagger
+    state.currentBuffer = buffer
     state.currentSample = sample.format
     state.originalTags = readTags(tagger)
     state.hasChanges = false
@@ -228,7 +227,7 @@ function saveChanges() {
           : value
   })
 
-  state.currentBuffer = state.tagger.saveSync(state.currentBuffer) as Uint8Array
+  state.currentBuffer = state.tagger.saveSync(state.currentBuffer!)
 
   state.originalTags = readTags(state.tagger)
   state.hasChanges = false
@@ -310,4 +309,7 @@ elements.resetBtn.addEventListener('click', resetChanges)
 elements.downloadBtn.addEventListener('click', downloadModifiedFile)
 
 // Load first sample by default
-loadSample(samples[0])
+const defaultSample = samples[0]
+if (defaultSample) {
+  loadSample(defaultSample)
+}

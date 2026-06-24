@@ -1,13 +1,13 @@
-// @ts-expect-error fxxk
-import { TaggedFile } from '../music-tag-native.wasi-browser.js'
 // oxlint-disable-next-line no-unused-vars
 import type { TaggedFile as Tagger } from '../index'
-declare class TaggedFile extends Tagger {}
-
+// @ts-expect-error fxxk
+import { TaggedFile } from '../music-tag-native.wasi-browser.js'
 import flacSampleUrl from '../samples/flac.flac?url'
 import mp3SampleUrl from '../samples/mp3.mp3?url'
 import oggSampleUrl from '../samples/ogg.opus?url'
 import wavSampleUrl from '../samples/wav.wav?url'
+
+declare class TaggedFile extends Tagger {}
 
 const samples = [
   { name: 'FLAC', format: 'flac', url: flacSampleUrl },
@@ -95,10 +95,11 @@ function renderTable(tbody: Element, data: Record<string, any>, editable = false
   tbody.innerHTML = Object.entries(data)
     .map(([key, value]) => {
       const displayValue = value ?? '<em>null</em>'
-      const valueCell = editable && state.editMode
-        ? `<input class="editable-input" data-tag="${key}" value="${value ?? ''}" placeholder="null" />`
-        : `<code>${displayValue}</code>`
-      
+      const valueCell =
+        editable && state.editMode
+          ? `<input class="editable-input" data-tag="${key}" value="${value ?? ''}" placeholder="null" />`
+          : `<code>${displayValue}</code>`
+
       return `<tr ${editable ? `data-tag-row="${key}"` : ''}>
         <td>${key}</td>
         <td>${valueCell}</td>
@@ -118,7 +119,7 @@ function handleTagEdit(e: Event) {
   const tagName = input.dataset.tag!
   const originalValue = state.originalTags[tagName]
   const newValue = input.value.trim() || null
-  
+
   const row = input.closest('tr')!
   if (String(originalValue) !== String(newValue)) {
     row.classList.add('tag-modified')
@@ -126,21 +127,21 @@ function handleTagEdit(e: Event) {
   } else {
     row.classList.remove('tag-modified')
   }
-  
+
   updateButtons()
 }
 
 function updateButtons() {
   const saveBtn = elements.saveBtn as HTMLButtonElement
   const resetBtn = elements.resetBtn as HTMLButtonElement
-  
+
   saveBtn.disabled = !state.hasChanges
   resetBtn.disabled = !state.hasChanges
 }
 
 function renderPictures(tagger: TaggedFile) {
   const pictures = tagger.pictures
-  
+
   if (!pictures || pictures.length === 0) {
     elements.pictures.innerHTML = '<p class="empty-state">No embedded pictures</p>'
     return
@@ -164,7 +165,7 @@ function renderPictures(tagger: TaggedFile) {
     .join('')
 }
 
-async function loadSample(sample: typeof samples[0]) {
+async function loadSample(sample: (typeof samples)[0]) {
   try {
     elements.status.textContent = `Loading ${sample.name}...`
     elements.status.classList.remove('error')
@@ -182,7 +183,7 @@ async function loadSample(sample: typeof samples[0]) {
     state.editMode = false
 
     elements.status.textContent = `✓ Loaded ${sample.name} successfully`
-    
+
     renderTable(elements.properties, readProperties(tagger))
     renderTable(elements.tags, readTags(tagger), true)
     renderPictures(tagger)
@@ -191,7 +192,6 @@ async function loadSample(sample: typeof samples[0]) {
     ;(elements.editModeBtn as HTMLButtonElement).disabled = false
     ;(elements.downloadSection as HTMLButtonElement).style.display = 'none'
     updateButtons()
-
   } catch (error) {
     elements.status.textContent = `✗ Error: ${error}`
     elements.status.classList.add('error')
@@ -202,51 +202,56 @@ async function loadSample(sample: typeof samples[0]) {
 function toggleEditMode() {
   state.editMode = !state.editMode
   elements.editModeBtn.classList.toggle('active', state.editMode)
-  
+
   if (state.tagger) {
     renderTable(elements.tags, readTags(state.tagger), true)
   }
 }
 
 function saveChanges() {
-  if (!state.tagger || !state.hasChanges) return
+  if (!state.tagger || !state.hasChanges) {
+    return
+  }
 
   const inputs = elements.tags.querySelectorAll('.editable-input') as NodeListOf<HTMLInputElement>
-  
+
   inputs.forEach((input) => {
     const tagName = input.dataset.tag!
     const value = input.value.trim() || null
-    
+
     // @ts-expect-error dynamic property access
-    state.tagger[tagName] = value === null ? null : (
-      tagName === 'year' || tagName.includes('Number') || tagName.includes('Total')
-        ? Number(value) || null
-        : value
-    )
+    state.tagger[tagName] =
+      value === null
+        ? null
+        : tagName === 'year' || tagName.includes('Number') || tagName.includes('Total')
+          ? Number(value) || null
+          : value
   })
 
-  state.currentBuffer =  state.tagger.saveSync(state.currentBuffer) as Uint8Array
-  
+  state.currentBuffer = state.tagger.saveSync(state.currentBuffer) as Uint8Array
+
   state.originalTags = readTags(state.tagger)
   state.hasChanges = false
-    
+
   elements.status.textContent = '✓ Changes saved to buffer!'
   ;(elements.downloadSection as HTMLElement).style.display = 'block'
-    
+
   renderTable(elements.tags, readTags(state.tagger), true)
   updateButtons()
-    
+
   console.log('✓ Tags updated successfully')
   console.table(readTags(state.tagger))
 }
 
 function resetChanges() {
-  if (!state.tagger) return
-  
+  if (!state.tagger) {
+    return
+  }
+
   state.hasChanges = false
   renderTable(elements.tags, state.originalTags, true)
   updateButtons()
-  
+
   elements.status.textContent = 'Changes reset'
 }
 
@@ -267,7 +272,7 @@ function downloadModifiedFile() {
   a.download = `modified-${Date.now()}.${state.currentSample}`
   a.click()
   URL.revokeObjectURL(url)
-  
+
   elements.status.textContent = '✓ File downloaded!'
 }
 
@@ -279,21 +284,23 @@ elements.sampleList.innerHTML = samples
       <strong>${sample.name}</strong>
       <span>${sample.format.toUpperCase()}</span>
     </button>
-  `
+  `,
   )
   .join('')
 
 // Event listeners
 elements.sampleList.addEventListener('click', (e) => {
   const button = (e.target as Element).closest('.sample-button') as HTMLButtonElement
-  if (!button) return
+  if (!button) {
+    return
+  }
 
   const format = button.dataset.sample!
   const sample = samples.find((s) => s.format === format)!
-  
+
   document.querySelectorAll('.sample-button').forEach((btn) => btn.classList.remove('is-active'))
   button.classList.add('is-active')
-  
+
   loadSample(sample)
 })
 

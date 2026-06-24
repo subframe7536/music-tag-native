@@ -1,14 +1,7 @@
 {
+  "extends": "@subf/config/tsconfig-lib",
   "compilerOptions": {
-    "target": "ESNext",
-    "strict": true,
-    "moduleResolution": "Bundler",
-    "module": "ESNext",
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "esModuleInterop": true,
-    "types": ["node"],
-    "allowSyntheticDefaultImports": true
+    "types": ["node"]
   },
   "include": ["index.d.ts", "test"]
 }

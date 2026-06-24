@@ -1,23 +1,26 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, it, expect, beforeEach } from 'vitest'
-import { join } from 'path'
+
 import { TaggedFile } from '../index'
-import { readFileSync } from 'fs'
+
 import { base } from './const'
 
 const samples = [
-  { file: 'mp3.mp3', expectedQuality: "HQ", description: 'MP3' },
+  { file: 'mp3.mp3', expectedQuality: 'HQ', description: 'MP3' },
   { file: 'flac.flac', description: 'FLAC' },
-  { file: 'ogg.opus', expectedQuality: "HQ", description: 'OGG Opus' },
+  { file: 'ogg.opus', expectedQuality: 'HQ', description: 'OGG Opus' },
   { file: 'wav.wav', description: 'WAV' },
 ] as const
 
 describe('Audio Properties', () => {
   for (const sample of samples) {
-    const buf = readFileSync(join(base, sample.file));
+    const buf = readFileSync(join(base, sample.file))
     let taggedFile: TaggedFile
     describe(sample.description, () => {
       beforeEach(() => {
-        taggedFile = TaggedFile.loadSync(buf);
+        taggedFile = TaggedFile.loadSync(buf)
       })
 
       if ('expectedQuality' in sample) {

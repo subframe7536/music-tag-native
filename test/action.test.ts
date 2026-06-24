@@ -1,9 +1,11 @@
-// oxlint-disable no-unused-expressions
+import { copyFileSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, it, expect } from 'vitest'
-import { copyFileSync, readFileSync, rmSync } from 'fs'
-import { join } from 'path'
-import { tmpdir } from 'os'
+
 import { TaggedFile } from '../index'
+
 import { base } from './const'
 
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
@@ -12,28 +14,28 @@ describe('TaggedFile', () => {
   describe.skipIf(isWasi)('load', () => {
     it('should load an MP3 file', async () => {
       const path = join(base, 'mp3.mp3')
-      const taggedFile = await TaggedFile.load(path);
+      const taggedFile = await TaggedFile.load(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a FLAC file', async () => {
       const path = join(base, 'flac.flac')
-      const taggedFile = await TaggedFile.load(path);
+      const taggedFile = await TaggedFile.load(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load an OGG/Opus file', async () => {
       const path = join(base, 'ogg.opus')
-      const taggedFile = await TaggedFile.load(path);
+      const taggedFile = await TaggedFile.load(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a WAV file', async () => {
       const path = join(base, 'wav.wav')
-      const taggedFile = await TaggedFile.load(path);
+      const taggedFile = await TaggedFile.load(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
@@ -54,28 +56,28 @@ describe('TaggedFile', () => {
   describe.skipIf(isWasi)('loadSync', () => {
     it('should load an MP3 file', () => {
       const path = join(base, 'mp3.mp3')
-      const taggedFile = TaggedFile.loadSync(path);
+      const taggedFile = TaggedFile.loadSync(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a FLAC file', () => {
       const path = join(base, 'flac.flac')
-      const taggedFile = TaggedFile.loadSync(path);
+      const taggedFile = TaggedFile.loadSync(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load an OGG/Opus file', () => {
       const path = join(base, 'ogg.opus')
-      const taggedFile = TaggedFile.loadSync(path);
+      const taggedFile = TaggedFile.loadSync(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a WAV file', () => {
       const path = join(base, 'wav.wav')
-      const taggedFile = TaggedFile.loadSync(path);
+      const taggedFile = TaggedFile.loadSync(path)
 
       expect(taggedFile.tagType).toBeTruthy()
     })
@@ -121,7 +123,7 @@ describe('TaggedFile', () => {
 
       const taggedFile = TaggedFile.loadSync(uint8Array)
       taggedFile.title = 'New Title'
-      const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
+      const newBuffer = (await taggedFile.save(uint8Array)) as Uint8Array
 
       expect(newBuffer).toBeInstanceOf(Uint8Array)
       expect(newBuffer.length).toBeGreaterThan(0)
@@ -136,7 +138,7 @@ describe('TaggedFile', () => {
 
       const taggedFile = TaggedFile.loadSync(uint8Array)
       taggedFile.title = 'New Title'
-      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
+      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array
 
       expect(newBuffer).toBeInstanceOf(Uint8Array)
       expect(newBuffer.length).toBeGreaterThan(0)
@@ -150,12 +152,12 @@ describe('TaggedFile', () => {
       copyFileSync(sourcePath, path)
 
       try {
-        const taggedFile = await TaggedFile.load(path);
+        const taggedFile = await TaggedFile.load(path)
         taggedFile.title = 'Saved Title'
 
-        await taggedFile.save();
+        await taggedFile.save()
 
-        const verifyTaggedFile = await TaggedFile.load(path);
+        const verifyTaggedFile = await TaggedFile.load(path)
         expect(verifyTaggedFile.title).toBe('Saved Title')
       } finally {
         rmSync(path, { force: true })
@@ -165,13 +167,13 @@ describe('TaggedFile', () => {
     it('should save to custom path', async () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
-      const taggedFile = await TaggedFile.load(path);
+      const taggedFile = await TaggedFile.load(path)
       taggedFile.title = 'Saved Custom Path Title'
 
-      await taggedFile.save(targetPath);
+      await taggedFile.save(targetPath)
 
       try {
-        const newTaggedFile = await TaggedFile.load(targetPath);
+        const newTaggedFile = await TaggedFile.load(targetPath)
         expect(newTaggedFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
@@ -186,12 +188,12 @@ describe('TaggedFile', () => {
       copyFileSync(sourcePath, path)
 
       try {
-        const taggedFile = TaggedFile.loadSync(path);
+        const taggedFile = TaggedFile.loadSync(path)
         taggedFile.title = 'Saved Title'
 
-        taggedFile.saveSync();
+        taggedFile.saveSync()
 
-        const verifyTaggedFile = TaggedFile.loadSync(path);
+        const verifyTaggedFile = TaggedFile.loadSync(path)
         expect(verifyTaggedFile.title).toBe('Saved Title')
       } finally {
         rmSync(path, { force: true })
@@ -201,13 +203,13 @@ describe('TaggedFile', () => {
     it('should save to custom path', () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
-      const taggedFile = TaggedFile.loadSync(path);
+      const taggedFile = TaggedFile.loadSync(path)
       taggedFile.title = 'Saved Custom Path Title'
 
-      taggedFile.saveSync(targetPath);
+      taggedFile.saveSync(targetPath)
 
       try {
-        const newTaggedFile = TaggedFile.loadSync(targetPath);
+        const newTaggedFile = TaggedFile.loadSync(targetPath)
         expect(newTaggedFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
@@ -221,7 +223,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadSync(uint8Array);
+      const taggedFile = TaggedFile.loadSync(uint8Array)
 
       // Modify metadata
       taggedFile.title = 'Modified Title'
@@ -236,10 +238,10 @@ describe('TaggedFile', () => {
       expect(taggedFile.genre).toBe('Test Genre')
 
       // Save and reload
-      const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
+      const newBuffer = (await taggedFile.save(uint8Array)) as Uint8Array
 
       // Create new tagger and load the modified buffer
-      const newTaggedFile = TaggedFile.loadSync(newBuffer);
+      const newTaggedFile = TaggedFile.loadSync(newBuffer)
 
       // Verify persisted changes
       expect(newTaggedFile.title).toBe('Modified Title')
@@ -253,7 +255,7 @@ describe('TaggedFile', () => {
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      const taggedFile = TaggedFile.loadSync(uint8Array);
+      const taggedFile = TaggedFile.loadSync(uint8Array)
 
       // Modify metadata
       taggedFile.title = 'Modified Title'
@@ -268,10 +270,10 @@ describe('TaggedFile', () => {
       expect(taggedFile.genre).toBe('Test Genre')
 
       // Save and reload
-      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
+      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array
 
       // Create new tagger and load the modified buffer
-      const newTaggedFile = TaggedFile.loadSync(newBuffer);
+      const newTaggedFile = TaggedFile.loadSync(newBuffer)
 
       // Verify persisted changes
       expect(newTaggedFile.title).toBe('Modified Title')
@@ -286,7 +288,7 @@ describe('TaggedFile', () => {
       for (const file of formats) {
         const path = join(base, file)
 
-        const taggedFile = await TaggedFile.load(path);
+        const taggedFile = await TaggedFile.load(path)
         expect(taggedFile.tagType).toBeTruthy()
         expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
       }
@@ -298,7 +300,7 @@ describe('TaggedFile', () => {
       for (const file of formats) {
         const path = join(base, file)
 
-        const taggedFile = TaggedFile.loadSync(path);
+        const taggedFile = TaggedFile.loadSync(path)
         expect(taggedFile.tagType).toBeTruthy()
         expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
       }

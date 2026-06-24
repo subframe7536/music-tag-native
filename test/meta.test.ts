@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, it, expect, beforeEach } from 'vitest'
-import { join } from 'path'
+
 import { MetaPicture, TaggedFile } from '../index'
+
 import { base } from './const'
-import { readFileSync } from 'fs'
 
 const samples = [
   { file: 'mp3.mp3', description: 'MP3' },
@@ -17,7 +20,7 @@ for (const sample of samples) {
     const buffer = readFileSync(join(base, sample.file))
 
     beforeEach(() => {
-      taggedFile = TaggedFile.loadSync(buffer);
+      taggedFile = TaggedFile.loadSync(buffer)
     })
 
     describe('title', () => {
@@ -430,7 +433,7 @@ for (const sample of samples) {
         const pictures = taggedFile.pictures
         expect(pictures).not.toBeNull()
         expect(pictures!.length).toBe(1)
-        expect(pictures![0].mimeType).toBe('image/jpeg')
+        expect(pictures![0]!.mimeType).toBe('image/jpeg')
       })
 
       it('should remove pictures when set to null', () => {
@@ -443,4 +446,3 @@ for (const sample of samples) {
     })
   })
 }
-

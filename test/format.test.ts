@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, it, expect, beforeEach } from 'vitest'
-import { join } from 'path'
+
 import { TaggedFile } from '../index'
-import { readFileSync } from 'fs'
+
 import { base } from './const'
 
 const samples = [
@@ -13,8 +16,8 @@ const samples = [
 
 describe.sequential('Cross-format Metadata', () => {
   for (const sample of samples) {
-    const buf = readFileSync(join(base, sample.file));
-    let taggedFile: TaggedFile;
+    const buf = readFileSync(join(base, sample.file))
+    let taggedFile: TaggedFile
     describe(sample.description, () => {
       beforeEach(() => {
         taggedFile = TaggedFile.loadSync(buf)
@@ -106,11 +109,11 @@ describe.sequential('Cross-format Metadata', () => {
         taggedFile.title = 'Saved Title'
         taggedFile.artist = 'Saved Artist'
 
-        const savedBuffer = await taggedFile.save(buf) as Uint8Array;
+        const savedBuffer = (await taggedFile.save(buf)) as Uint8Array
         expect(savedBuffer).toBeInstanceOf(Uint8Array)
         expect(savedBuffer.length).toBeGreaterThan(0)
 
-        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer);
+        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer)
         expect(reloadedTaggedFile.title).toBe('Saved Title')
         expect(reloadedTaggedFile.artist).toBe('Saved Artist')
       })
@@ -119,11 +122,11 @@ describe.sequential('Cross-format Metadata', () => {
         taggedFile.title = 'Saved Title'
         taggedFile.artist = 'Saved Artist'
 
-        const savedBuffer = taggedFile.saveSync(buf) as Uint8Array;
+        const savedBuffer = taggedFile.saveSync(buf) as Uint8Array
         expect(savedBuffer).toBeInstanceOf(Uint8Array)
         expect(savedBuffer.length).toBeGreaterThan(0)
 
-        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer);
+        const reloadedTaggedFile = TaggedFile.loadSync(savedBuffer)
         expect(reloadedTaggedFile.title).toBe('Saved Title')
         expect(reloadedTaggedFile.artist).toBe('Saved Artist')
       })

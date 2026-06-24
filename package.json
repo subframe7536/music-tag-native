@@ -2,35 +2,69 @@
   "name": "music-tag-native",
   "version": "0.2.5",
   "description": "Music tag reader / writter in Node.js / Browser, powered by napi-rs and lofty",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "browser": "browser.js",
-  "repository": {
-    "url": "git+ssh://git@github.com/subframe7536/music-tag-native.git",
-    "type": "git"
-  },
-  "license": "MIT",
   "keywords": [
-    "napi-rs",
-    "NAPI",
+    "FLAC",
+    "ID3",
+    "M4A",
+    "MP3",
     "N-API",
+    "NAPI",
     "Rust",
+    "Vorbis",
+    "WAV",
+    "music",
+    "napi-rs",
     "node-addon",
     "node-addon-api",
-    "music",
-    "tags",
-    "MP3",
-    "M4A",
-    "FLAC",
-    "WAV",
-    "ID3",
-    "Vorbis"
+    "tags"
   ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/subframe7536/music-tag-native.git"
+  },
   "files": [
     "index.d.ts",
     "index.js",
     "browser.js"
   ],
+  "main": "index.js",
+  "browser": "browser.js",
+  "types": "index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "dev": "napi build --watch --target wasm32-wasip1-threads",
+    "build": "napi build --platform --release --strip",
+    "build:wasm": "napi build --release --target wasm32-wasip1-threads",
+    "build:debug": "napi build --platform",
+    "qa": "oxlint --fix && oxfmt && tsc --noEmit",
+    "test": "vitest run",
+    "test:rebuild": "pnpm run build:debug && vitest run",
+    "play": "vite serve playground",
+    "test:watch": "vitest",
+    "prepublishOnly": "napi prepublish -t npm",
+    "release": "bumpp -x \"pnpm run test:rebuild\" --all"
+  },
+  "devDependencies": {
+    "@emnapi/core": "^1.7.1",
+    "@emnapi/runtime": "^1.7.1",
+    "@napi-rs/cli": "^3.5.0",
+    "@napi-rs/wasm-runtime": "^1.1.0",
+    "@subf/config": "^0.2.1",
+    "@tybys/wasm-util": "^0.10.1",
+    "@types/node": "^24.10.1",
+    "bumpp": "^10.3.2",
+    "emnapi": "^1.7.1",
+    "oxfmt": "^0.56.0",
+    "oxlint": "^1.71.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9"
+  },
   "napi": {
     "binaryName": "music-tag-native",
     "targets": [
@@ -51,39 +85,6 @@
   },
   "engines": {
     "node": ">= 10"
-  },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org/",
-    "access": "public"
-  },
-  "scripts": {
-    "artifacts": "napi artifacts",
-    "dev": "napi build --watch --target wasm32-wasip1-threads",
-    "build": "napi build --platform --release --strip",
-    "build:wasm": "napi build --release --target wasm32-wasip1-threads",
-    "build:debug": "napi build --platform",
-    "lint": "oxlint",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:rebuild": "pnpm run build:debug && vitest run",
-    "play": "vite serve playground",
-    "test:watch": "vitest",
-    "prepublishOnly": "napi prepublish -t npm",
-    "release": "bumpp -x \"pnpm run test:rebuild\" --all"
-  },
-  "devDependencies": {
-    "@emnapi/core": "^1.7.1",
-    "@emnapi/runtime": "^1.7.1",
-    "@napi-rs/cli": "^3.5.0",
-    "@napi-rs/wasm-runtime": "^1.1.0",
-    "@tybys/wasm-util": "^0.10.1",
-    "@types/node": "^24.10.1",
-    "bumpp": "^10.3.2",
-    "emnapi": "^1.7.1",
-    "oxlint": "^1.31.0",
-    "typescript": "^5.9.3",
-    "vite": "^7.2.7",
-    "vitest": "^4.0.15"
   },
   "packageManager": "pnpm@10.33.4"
 }

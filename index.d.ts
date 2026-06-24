@@ -29,7 +29,7 @@ export declare class TaggedFile {
    *
    * @note If the audio properties don't provide a bitrate, this method calculates
    * an approximate bitrate based on file size and duration, including metadata.
-   * The calculated bitrate is constrained between MIN_BITRATE and MAX_BITRATE.
+   * The calculated bitrate is constrained between 8 and 10,000 kbps.
    */
   get bitRate(): number | null
   /**
@@ -41,102 +41,101 @@ export declare class TaggedFile {
   /**
    * Number of audio channels, or `null` if not available
    *
-   * Common values: 1 (mono), 2 (stereo), 6 (5.1 surround)
    * Common values: 1 (mono), 2 (stereo), 6 (5.1 surround), 8 (7.1 surround)
    */
   get channels(): number | null
-  /** Audio duration in seconds, or `null` if not available */
+  /** Audio duration in milliseconds, 0 if not available */
   get duration(): number
-  /** File's metadata tag type, or `null` if not recognized */
+  /** File's metadata tag type, or `null` if not recognized or no available tag */
   get tagType(): "AIFF" | "APE" | "ID3V1" | "ID3V2" | "ILST" | "RIFF" | "VORBIS" | null
-  /** Title, or `null` if not set */
+  /** Title, or `null` if not set or no available tag */
   get title(): string | null
   set title(title: string | null)
-  /** Artist, or `null` if not set */
+  /** Artist, or `null` if not set or no available tag */
   get artist(): string | null
   set artist(artist: string | null)
-  /** Album, or `null` if not set */
+  /** Album, or `null` if not set or no available tag */
   get album(): string | null
   set album(album: string | null)
-  /** Year, or `null` if not set */
+  /** Year, or `null` if not set or no available tag */
   get year(): number | null
   set year(year: number | null)
-  /** Genre, or `null` if not set */
+  /** Genre, or `null` if not set or no available tag */
   get genre(): string | null
   set genre(genre: string | null)
-  /** Track number, or `null` if not set */
+  /** Track number, or `null` if not set or no available tag */
   get trackNumber(): number | null
   set trackNumber(trackNumber: number | null)
-  /** Disc number, or `null` if not set */
+  /** Disc number, or `null` if not set or no available tag */
   get discNumber(): number | null
   set discNumber(discNumber: number | null)
-  /** Total number of tracks in the album, or `null` if not set */
+  /** Total number of tracks in the album, or `null` if not set or no available tag */
   get trackTotal(): number | null
   set trackTotal(trackTotal: number | null)
-  /** Total number of discs in the album, or `null` if not set */
+  /** Total number of discs in the album, or `null` if not set or no available tag */
   get discsTotal(): number | null
   set discsTotal(discsTotal: number | null)
-  /** Comment, or `null` if not set */
+  /** Comment, or `null` if not set or no available tag */
   get comment(): string | null
   set comment(comment: string | null)
   /**
-   * Album artist, or `null` if not set
+   * Album artist, or `null` if not set or no available tag
    *
    * @note Album artist differs from track artist and represents the primary artist for the entire album.
    */
   get albumArtist(): string | null
   set albumArtist(albumArtist: string | null)
-  /** Composer, or `null` if not set */
+  /** Composer, or `null` if not set or no available tag */
   get composer(): string | null
   set composer(composer: string | null)
-  /** Conductor, or `null` if not set */
+  /** Conductor, or `null` if not set or no available tag */
   get conductor(): string | null
   set conductor(conductor: string | null)
-  /** Lyricist, or `null` if not set */
+  /** Lyricist, or `null` if not set or no available tag */
   get lyricist(): string | null
   set lyricist(lyricist: string | null)
-  /** Publisher, or `null` if not set */
+  /** Publisher, or `null` if not set or no available tag */
   get publisher(): string | null
   set publisher(publisher: string | null)
-  /** Lyrics, or `null` if not set */
+  /** Lyrics, or `null` if not set or no available tag */
   get lyrics(): string | null
   set lyrics(lyrics: string | null)
-  /** Copyright information, or `null` if not set */
+  /** Copyright information, or `null` if not set or no available tag */
   get copyright(): string | null
   set copyright(copyright: string | null)
-  /** User star ratings, or `null` if not set */
+  /** User star ratings, or `null` if not set or no available tag */
   get rating(): 1 | 2 | 3 | 4 | 5 | null
   set rating(rating: number | null)
   /**
-   * Track replay gain in dB, or `null` if not set
+   * Track replay gain in dB, or `null` if not set or no available tag
    *
    * @note Replay gain is used to normalize playback volume across different tracks.
    */
   get trackReplayGain(): number | null
   set trackReplayGain(trackReplayGain: number | null)
   /**
-   * Track replay peak value, or `null` if not set
+   * Track replay peak value, or `null` if not set or no available tag
    *
    * @note Replay peak represents the maximum amplitude level in the track.
    */
   get trackReplayPeak(): number | null
   set trackReplayPeak(trackReplayPeak: number | null)
   /**
-   * Album replay gain in dB, or `null` if not set
+   * Album replay gain in dB, or `null` if not set or no available tag
    *
    * @note Album replay gain normalizes playback volume across different albums.
    */
   get albumReplayGain(): number | null
   set albumReplayGain(albumReplayGain: number | null)
   /**
-   * Album replay peak value, or `null` if not set
+   * Album replay peak value, or `null` if not set or no available tag
    *
    * @note Album replay peak represents the maximum amplitude level in the album.
    */
   get albumReplayPeak(): number | null
   set albumReplayPeak(albumReplayPeak: number | null)
   /**
-   * Embedded pictures/album art list, or `null` if no picture is embedded
+   * Embedded pictures/album art list, or `null` if no picture is embedded or no available tag
    *
    * @note Returns all embedded pictures including album art, artist photos, etc.
    */

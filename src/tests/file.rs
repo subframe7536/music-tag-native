@@ -10,29 +10,29 @@ use crate::{
 #[test]
 fn test_load_mp3_from_path() {
     let t = tagged_file_from_path("mp3.mp3");
-    assert!(t.tag_type().unwrap().is_some());
-    assert!(t.duration().unwrap() > 0);
+    assert!(t.tag_type().is_some());
+    assert!(t.duration() > 0);
 }
 
 #[test]
 fn test_load_flac_from_path() {
     let t = tagged_file_from_path("flac.flac");
-    assert!(t.tag_type().unwrap().is_some());
-    assert!(t.duration().unwrap() > 0);
+    assert!(t.tag_type().is_some());
+    assert!(t.duration() > 0);
 }
 
 #[test]
 fn test_load_ogg_from_path() {
     let t = tagged_file_from_path("ogg.opus");
-    assert!(t.tag_type().unwrap().is_some());
-    assert!(t.duration().unwrap() > 0);
+    assert!(t.tag_type().is_some());
+    assert!(t.duration() > 0);
 }
 
 #[test]
 fn test_load_wav_from_path() {
     let t = tagged_file_from_path("wav.wav");
-    assert!(t.tag_type().unwrap().is_some());
-    assert!(t.duration().unwrap() > 0);
+    assert!(t.tag_type().is_some());
+    assert!(t.duration() > 0);
 }
 
 #[test]
@@ -46,25 +46,25 @@ fn test_dont_load_garbage_file() {
 #[test]
 fn test_load_mp3_from_buffer() {
     let t = tagged_file_from_buffer("mp3.mp3");
-    assert!(t.tag_type().unwrap().is_some());
+    assert!(t.tag_type().is_some());
 }
 
 #[test]
 fn test_load_flac_from_buffer() {
     let t = tagged_file_from_buffer("flac.flac");
-    assert!(t.tag_type().unwrap().is_some());
+    assert!(t.tag_type().is_some());
 }
 
 #[test]
 fn test_load_ogg_from_buffer() {
     let t = tagged_file_from_buffer("ogg.opus");
-    assert!(t.tag_type().unwrap().is_some());
+    assert!(t.tag_type().is_some());
 }
 
 #[test]
 fn test_load_wav_from_buffer() {
     let t = tagged_file_from_buffer("wav.wav");
-    assert!(t.tag_type().unwrap().is_some());
+    assert!(t.tag_type().is_some());
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn test_mp3_buffer_save_round_trip() {
     };
 
     let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
-    assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
+    assert_eq!(t2.title().as_deref(), Some("Rust Test Title"));
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn test_mp3_insert_new_tag_save_round_trip() {
     };
 
     let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
-    assert_eq!(t2.title().unwrap().as_deref(), Some("Rust Test Title"));
+    assert_eq!(t2.title().as_deref(), Some("Rust Test Title"));
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn test_flac_buffer_save_round_trip() {
     };
 
     let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
-    assert_eq!(t2.title().unwrap().as_deref(), Some("FLAC Rust Title"));
+    assert_eq!(t2.title().as_deref(), Some("FLAC Rust Title"));
 }
 
 #[test]
@@ -137,5 +137,5 @@ fn test_ogg_buffer_save_round_trip() {
     };
 
     let t2 = TaggedFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
-    assert_eq!(t2.title().unwrap().as_deref(), Some("OGG Rust Title"));
+    assert_eq!(t2.title().as_deref(), Some("OGG Rust Title"));
 }

@@ -8,19 +8,18 @@ use crate::tagged_file::TaggedFile;
 
 impl TaggedFile {
     /// Execute a function on the primary or first available tag
-    pub(crate) fn tag<R, F>(&self, f: F) -> Result<Option<R>>
+    pub(crate) fn tag<R, F>(&self, f: F) -> Option<R>
     where
         F: FnOnce(&Tag) -> Option<R>,
     {
         if !self.file.contains_tag() {
-            return Ok(None);
+            return None;
         }
 
-        Ok(self
-            .file
+        self.file
             .primary_tag()
             .or_else(|| self.file.first_tag())
-            .and_then(f))
+            .and_then(f)
     }
 
     /// Execute a mutable function on the primary or first available tag

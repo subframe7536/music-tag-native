@@ -23,7 +23,7 @@ impl TaggedFile {
         getter,
         ts_return_type = r#""AIFF" | "APE" | "ID3V1" | "ID3V2" | "ILST" | "RIFF" | "VORBIS" | null"#
     )]
-    pub fn tag_type(&self) -> Result<Option<String>> {
+    pub fn tag_type(&self) -> Option<String> {
         self.tag(|tag| match tag.tag_type() {
             LoftyTagType::AiffText => Some("AIFF".to_string()),
             LoftyTagType::Ape => Some("APE".to_string()),
@@ -38,7 +38,7 @@ impl TaggedFile {
 
     /// Title, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn title(&self) -> Result<Option<String>> {
+    pub fn title(&self) -> Option<String> {
         self.tag(|tag| tag.title().map(String::from))
     }
 
@@ -52,7 +52,7 @@ impl TaggedFile {
 
     /// Artist, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn artist(&self) -> Result<Option<String>> {
+    pub fn artist(&self) -> Option<String> {
         self.tag(|tag| tag.artist().map(String::from))
     }
 
@@ -66,7 +66,7 @@ impl TaggedFile {
 
     /// Album, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn album(&self) -> Result<Option<String>> {
+    pub fn album(&self) -> Option<String> {
         self.tag(|tag| tag.album().map(String::from))
     }
 
@@ -80,7 +80,7 @@ impl TaggedFile {
 
     /// Year, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn year(&self) -> Result<Option<u16>> {
+    pub fn year(&self) -> Option<u16> {
         self.tag(|tag| tag.date().map(|d| d.year))
     }
 
@@ -97,7 +97,7 @@ impl TaggedFile {
 
     /// Genre, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn genre(&self) -> Result<Option<String>> {
+    pub fn genre(&self) -> Option<String> {
         self.tag(|tag| tag.genre().map(String::from))
     }
 
@@ -111,7 +111,7 @@ impl TaggedFile {
 
     /// Track number, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn track_number(&self) -> Result<Option<u32>> {
+    pub fn track_number(&self) -> Option<u32> {
         self.tag(|tag| tag.track())
     }
 
@@ -125,7 +125,7 @@ impl TaggedFile {
 
     /// Disc number, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn disc_number(&self) -> Result<Option<u32>> {
+    pub fn disc_number(&self) -> Option<u32> {
         self.tag(|tag| tag.disk())
     }
 
@@ -139,7 +139,7 @@ impl TaggedFile {
 
     /// Total number of tracks in the album, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn track_total(&self) -> Result<Option<u32>> {
+    pub fn track_total(&self) -> Option<u32> {
         self.tag(|tag| tag.track_total())
     }
 
@@ -153,7 +153,7 @@ impl TaggedFile {
 
     /// Total number of discs in the album, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn discs_total(&self) -> Result<Option<u32>> {
+    pub fn discs_total(&self) -> Option<u32> {
         self.tag(|tag| tag.disk_total())
     }
 
@@ -167,7 +167,7 @@ impl TaggedFile {
 
     /// Comment, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn comment(&self) -> Result<Option<String>> {
+    pub fn comment(&self) -> Option<String> {
         self.tag(|tag| tag.comment().map(String::from))
     }
 
@@ -183,7 +183,7 @@ impl TaggedFile {
     ///
     /// @note Album artist differs from track artist and represents the primary artist for the entire album.
     #[napi(getter)]
-    pub fn album_artist(&self) -> Result<Option<String>> {
+    pub fn album_artist(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::AlbumArtist).map(String::from))
     }
 
@@ -194,7 +194,7 @@ impl TaggedFile {
 
     /// Composer, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn composer(&self) -> Result<Option<String>> {
+    pub fn composer(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::Composer).map(String::from))
     }
 
@@ -205,7 +205,7 @@ impl TaggedFile {
 
     /// Conductor, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn conductor(&self) -> Result<Option<String>> {
+    pub fn conductor(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::Conductor).map(String::from))
     }
 
@@ -216,7 +216,7 @@ impl TaggedFile {
 
     /// Lyricist, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn lyricist(&self) -> Result<Option<String>> {
+    pub fn lyricist(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::Lyricist).map(String::from))
     }
 
@@ -227,7 +227,7 @@ impl TaggedFile {
 
     /// Publisher, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn publisher(&self) -> Result<Option<String>> {
+    pub fn publisher(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::Publisher).map(String::from))
     }
 
@@ -238,7 +238,7 @@ impl TaggedFile {
 
     /// Lyrics, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn lyrics(&self) -> Result<Option<String>> {
+    pub fn lyrics(&self) -> Option<String> {
         self.tag(|tag| match tag.tag_type() {
             LoftyTagType::Id3v2 => tag.get_string(ItemKey::UnsyncLyrics).map(String::from),
             _ => tag.get_string(ItemKey::Lyrics).map(String::from),
@@ -247,7 +247,7 @@ impl TaggedFile {
 
     #[napi(setter)]
     pub fn set_lyrics(&mut self, lyrics: Either<String, Null>) -> Result<()> {
-        match self.tag(|tag| Some(tag.tag_type()))? {
+        match self.tag(|tag| Some(tag.tag_type())) {
             Some(LoftyTagType::Id3v2) => self.set_text_field(ItemKey::UnsyncLyrics, lyrics),
             _ => self.set_text_field(ItemKey::Lyrics, lyrics),
         }
@@ -255,7 +255,7 @@ impl TaggedFile {
 
     /// Copyright information, or `null` if not set or no available tag
     #[napi(getter)]
-    pub fn copyright(&self) -> Result<Option<String>> {
+    pub fn copyright(&self) -> Option<String> {
         self.tag(|tag| tag.get_string(ItemKey::CopyrightMessage).map(String::from))
     }
 
@@ -266,19 +266,14 @@ impl TaggedFile {
 
     /// User star ratings, or `null` if not set or no available tag
     #[napi(getter, ts_return_type = "1 | 2 | 3 | 4 | 5 | null")]
-    pub fn rating(&self) -> Result<Either<u8, Null>> {
-        let rating = self.tag(|tag| match tag.ratings().next().map(|p| p.rating) {
+    pub fn rating(&self) -> Option<u8> {
+        self.tag(|tag| match tag.ratings().next().map(|p| p.rating) {
             Some(StarRating::One) => Some(1),
             Some(StarRating::Two) => Some(2),
             Some(StarRating::Three) => Some(3),
             Some(StarRating::Four) => Some(4),
             Some(StarRating::Five) => Some(5),
             _ => None,
-        })?;
-
-        Ok(match rating {
-            Some(value) => Either::A(value),
-            None => Either::B(Null),
         })
     }
 
@@ -314,7 +309,7 @@ impl TaggedFile {
     ///
     /// @note Replay gain is used to normalize playback volume across different tracks.
     #[napi(getter)]
-    pub fn track_replay_gain(&self) -> Result<Option<f64>> {
+    pub fn track_replay_gain(&self) -> Option<f64> {
         self.tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainTrackGain)?))
     }
 
@@ -331,7 +326,7 @@ impl TaggedFile {
     ///
     /// @note Replay peak represents the maximum amplitude level in the track.
     #[napi(getter)]
-    pub fn track_replay_peak(&self) -> Result<Option<f64>> {
+    pub fn track_replay_peak(&self) -> Option<f64> {
         self.tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainTrackPeak)?))
     }
 
@@ -348,7 +343,7 @@ impl TaggedFile {
     ///
     /// @note Album replay gain normalizes playback volume across different albums.
     #[napi(getter)]
-    pub fn album_replay_gain(&self) -> Result<Option<f64>> {
+    pub fn album_replay_gain(&self) -> Option<f64> {
         self.tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainAlbumGain)?))
     }
 
@@ -365,7 +360,7 @@ impl TaggedFile {
     ///
     /// @note Album replay peak represents the maximum amplitude level in the album.
     #[napi(getter)]
-    pub fn album_replay_peak(&self) -> Result<Option<f64>> {
+    pub fn album_replay_peak(&self) -> Option<f64> {
         self.tag(|tag| parse_replaygain_value(tag.get_string(ItemKey::ReplayGainAlbumPeak)?))
     }
 
@@ -382,7 +377,7 @@ impl TaggedFile {
     ///
     /// @note Returns all embedded pictures including album art, artist photos, etc.
     #[napi(getter)]
-    pub fn pictures(&self) -> Result<Option<Vec<MetaPicture>>> {
+    pub fn pictures(&self) -> Option<Vec<MetaPicture>> {
         self.tag(|tag| from_lofty_picture_slice(tag.pictures()))
     }
 

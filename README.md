@@ -37,39 +37,39 @@ bun add music-tag-native
 ### Node.js
 
 ```ts
-import { TaggedFile } from 'music-tag-native'
+import { MusicFile } from 'music-tag-native'
 
 // Load from file path
-const taggedFile = await TaggedFile.load('/path/to/audio/file.mp3')
+const musicFile = await MusicFile.load('/path/to/audio/file.mp3')
 // synchronous:
-const taggedFileSync = TaggedFile.loadSync('/path/to/audio/file.mp3')
+const musicFileSync = MusicFile.loadSync('/path/to/audio/file.mp3')
 
 // Read metadata
-console.log(taggedFile.title)
-console.log(taggedFile.artist)
-console.log(taggedFile.album)
+console.log(musicFile.title)
+console.log(musicFile.artist)
+console.log(musicFile.album)
 
 // Modify metadata
-taggedFile.title = 'New Title'
-taggedFile.artist = 'New Artist'
-taggedFile.year = 2024
+musicFile.title = 'New Title'
+musicFile.artist = 'New Artist'
+musicFile.year = 2024
 
 // Remove a tag (set to null)
-taggedFile.albumArtist = null
+musicFile.albumArtist = null
 
 // Save changes back to file
-await taggedFile.save()
+await musicFile.save()
 // synchronous:
-taggedFile.saveSync()
+musicFile.saveSync()
 
 // Or save to a different file path
-await taggedFile.save('/path/to/output.mp3')
+await musicFile.save('/path/to/output.mp3')
 ```
 
 ### Browser
 
 ```ts
-import { TaggedFile } from 'music-tag-native'
+import { MusicFile } from 'music-tag-native'
 
 // Load from buffer
 const response = await fetch('/url/to/audio/file.mp3')
@@ -77,19 +77,19 @@ const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
 // `loadSync` is synchronous only
-const taggedFile = TaggedFile.loadSync(buffer)
+const musicFile = MusicFile.loadSync(buffer)
 
 // Read and modify metadata
-console.log(taggedFile.title)
-taggedFile.title = 'New Title'
+console.log(musicFile.title)
+musicFile.title = 'New Title'
 
 // Get modified buffer, you need to provide the original data, a new copy with updated tags will be returned
-const modifiedBuffer = await taggedFile.save(buffer)
+const modifiedBuffer = await musicFile.save(buffer)
 // synchronous:
-const modifiedBufferSync = taggedFile.saveSync(buffer)
+const modifiedBufferSync = musicFile.saveSync(buffer)
 
 // Display album art
-const pictures = taggedFile.pictures
+const pictures = musicFile.pictures
 if (pictures && pictures.length > 0) {
   const picture = pictures[0]
   const blob = new Blob([picture.data], { type: picture.mimeType })
@@ -100,14 +100,14 @@ if (pictures && pictures.length > 0) {
 
 ## API Reference
 
-### TaggedFile
+### MusicFile
 
 #### Loading Files
 
-- `TaggedFile.load(path: string): Promise<TaggedFile>` - Load audio file from path (Node.js only)
-- `TaggedFile.loadSync(path: string): TaggedFile` - Load audio file from path (Node.js only)
-- `TaggedFile.load(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
-- `TaggedFile.loadSync(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
+- `MusicFile.load(path: string): Promise<MusicFile>` - Load audio file from path (Node.js only)
+- `MusicFile.loadSync(path: string): MusicFile` - Load audio file from path (Node.js only)
+- `MusicFile.load(buffer: Uint8Array): MusicFile` - Load audio file from buffer
+- `MusicFile.loadSync(buffer: Uint8Array): MusicFile` - Load audio file from buffer
 
 #### Saving Changes
 

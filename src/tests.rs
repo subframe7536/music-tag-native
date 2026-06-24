@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use napi::Either;
 
-use crate::tagged_file::TaggedFile;
+use crate::music_file::MusicFile;
 
 mod file;
 mod meta_picture;
@@ -15,12 +15,12 @@ fn samples_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples")
 }
 
-fn tagged_file_from_path(name: &str) -> TaggedFile {
+fn music_file_from_path(name: &str) -> MusicFile {
     let path = samples_dir().join(name).to_str().unwrap().to_string();
-    TaggedFile::load_sync(Either::B(path)).expect("load failed")
+    MusicFile::load_sync(Either::B(path)).expect("load failed")
 }
 
-fn tagged_file_from_buffer(name: &str) -> TaggedFile {
+fn music_file_from_buffer(name: &str) -> MusicFile {
     let data: Vec<u8> = std::fs::read(samples_dir().join(name)).expect("read failed");
-    TaggedFile::load_sync(Either::A(data.into())).expect("load_sync failed")
+    MusicFile::load_sync(Either::A(data.into())).expect("load_sync failed")
 }

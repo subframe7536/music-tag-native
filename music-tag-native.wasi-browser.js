@@ -57,4 +57,4 @@ const {
 })
 export default __napiModule.exports
 export const MetaPicture = __napiModule.exports.MetaPicture
-export const TaggedFile = __napiModule.exports.TaggedFile
+export const MusicFile = __napiModule.exports.MusicFile

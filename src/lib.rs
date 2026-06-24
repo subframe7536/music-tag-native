@@ -1,5 +1,5 @@
 mod meta_picture;
-mod tagged_file;
+mod music_file;
 mod utils;
 
 #[cfg(test)]

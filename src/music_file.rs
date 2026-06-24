@@ -11,8 +11,11 @@ use napi::{
 };
 use napi_derive::napi;
 
+#[path = "helper.rs"]
 mod helper;
+#[path = "properties.rs"]
 mod properties;
+#[path = "tag.rs"]
 mod tag;
 
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
@@ -47,7 +50,7 @@ fn save_to_custom_path_impl(
         })
 }
 
-pub(crate) enum TaggedFileInner {
+pub(crate) enum MusicFileInner {
     Buffer { source_len: usize },
     Path(String),
 }
@@ -56,7 +59,7 @@ pub struct AsyncLoadPath {
     path: String,
 }
 
-fn load_from_path_impl(path: &String) -> Result<TaggedFile> {
+fn load_from_path_impl(path: &String) -> Result<MusicFile> {
     let file = Probe::open(path)
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .guess_file_type()
@@ -64,22 +67,22 @@ fn load_from_path_impl(path: &String) -> Result<TaggedFile> {
         .read()
         .map_err(|e| Error::new(Status::InvalidArg, e))?;
 
-    Ok(TaggedFile {
+    Ok(MusicFile {
         file,
-        inner: TaggedFileInner::Path(path.clone()),
+        inner: MusicFileInner::Path(path.clone()),
     })
 }
 
-fn load_from_buffer_impl(buffer: Uint8Array) -> Result<TaggedFile> {
+fn load_from_buffer_impl(buffer: Uint8Array) -> Result<MusicFile> {
     let file = Probe::new(Cursor::new(&buffer))
         .guess_file_type()
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .read()
         .map_err(|e| Error::new(Status::InvalidArg, e))?;
 
-    Ok(TaggedFile {
+    Ok(MusicFile {
         file,
-        inner: TaggedFileInner::Buffer {
+        inner: MusicFileInner::Buffer {
             source_len: buffer.len(),
         },
     })
@@ -87,9 +90,9 @@ fn load_from_buffer_impl(buffer: Uint8Array) -> Result<TaggedFile> {
 
 #[napi]
 impl Task for AsyncLoadPath {
-    type Output = TaggedFile;
+    type Output = MusicFile;
 
-    type JsValue = TaggedFile;
+    type JsValue = MusicFile;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
         load_from_path_impl(&self.path)
@@ -122,20 +125,20 @@ impl Task for AsyncSavePath {
 }
 
 #[napi]
-pub struct TaggedFile {
+pub struct MusicFile {
     file: LoftyTaggedFile,
-    inner: TaggedFileInner,
+    inner: MusicFileInner,
 }
 
 #[cfg(test)]
-impl TaggedFile {
-    pub(crate) fn new_for_test(file: LoftyTaggedFile, inner: TaggedFileInner) -> Self {
+impl MusicFile {
+    pub(crate) fn new_for_test(file: LoftyTaggedFile, inner: MusicFileInner) -> Self {
         Self { file, inner }
     }
 }
 
 #[napi]
-impl TaggedFile {
+impl MusicFile {
     /// Load music file from a file path or byte buffer
     ///
     /// @param source The file system path or a Uint8Array containing the audio file data
@@ -143,12 +146,12 @@ impl TaggedFile {
     /// @throws If the path doesn't exist or isn't accessible
     /// @throws If the file doesn't contain a valid audio format
     /// @throws If runs in WebAssembly environments (due to file system restrictions).
-    #[napi(ts_type = r#"(path: string): Promise<TaggedFile>
-  static load(buffer: Uint8Array): Promise<TaggedFile>"#)]
+    #[napi(ts_type = r#"(path: string): Promise<MusicFile>
+  static load(buffer: Uint8Array): Promise<MusicFile>"#)]
     pub fn load(
         env: &Env,
         source: Either<Uint8Array, String>,
-    ) -> Result<Either<PromiseRaw<'_, TaggedFile>, AsyncTask<AsyncLoadPath>>> {
+    ) -> Result<Either<PromiseRaw<'_, MusicFile>, AsyncTask<AsyncLoadPath>>> {
         match source {
             Either::A(buffer) => Ok(Either::A(PromiseRaw::resolve(
                 env,
@@ -173,9 +176,9 @@ impl TaggedFile {
     /// @throws If the path doesn't exist or isn't accessible
     /// @throws If the file doesn't contain a valid audio format
     /// @throws If runs in WebAssembly environments (due to file system restrictions).
-    #[napi(ts_type = r#"(path: string): TaggedFile
-  static loadSync(buffer: Uint8Array): TaggedFile"#)]
-    pub fn load_sync(source: Either<Uint8Array, String>) -> Result<TaggedFile> {
+    #[napi(ts_type = r#"(path: string): MusicFile
+  static loadSync(buffer: Uint8Array): MusicFile"#)]
+    pub fn load_sync(source: Either<Uint8Array, String>) -> Result<MusicFile> {
         match source {
             Either::A(buffer) => load_from_buffer_impl(buffer),
             Either::B(path) => {
@@ -195,8 +198,8 @@ impl TaggedFile {
     #[napi]
     pub fn path(&self) -> Option<&String> {
         match &self.inner {
-            TaggedFileInner::Buffer { .. } => None,
-            TaggedFileInner::Path(path) => Some(path),
+            MusicFileInner::Buffer { .. } => None,
+            MusicFileInner::Path(path) => Some(path),
         }
     }
 
@@ -230,11 +233,11 @@ impl TaggedFile {
         match buffer_or_path {
             None => {
                 match &self.inner {
-                    TaggedFileInner::Buffer { .. } => {
+                    MusicFileInner::Buffer { .. } => {
                         Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                     }
-                    TaggedFileInner::Path(path) => {
-                        // Create a snapshot of TaggedFile, to send to the task
+                    MusicFileInner::Path(path) => {
+                        // Create a snapshot of MusicFile, to send to the task
                         let file = LoftyTaggedFile::new(
                             self.file.file_type(),
                             self.file.properties().clone(),
@@ -261,20 +264,18 @@ impl TaggedFile {
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, TaggedFileInner::Buffer { .. }) {
+                    if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
                         return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
                     }
 
                     let src_path = match &self.inner {
-                        TaggedFileInner::Path(current)
-                            if Path::new(current) != Path::new(&path) =>
-                        {
+                        MusicFileInner::Path(current) if Path::new(current) != Path::new(&path) => {
                             Some(current.clone())
                         }
                         _ => None,
                     };
 
-                    // Create a snapshot of TaggedFile, to send to the task
+                    // Create a snapshot of MusicFile, to send to the task
                     let file = LoftyTaggedFile::new(
                         self.file.file_type(),
                         self.file.properties().clone(),
@@ -310,10 +311,10 @@ impl TaggedFile {
     ) -> Result<Either<(), Uint8Array>> {
         match buffer_or_path {
             None => match &self.inner {
-                TaggedFileInner::Buffer { .. } => {
+                MusicFileInner::Buffer { .. } => {
                     Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                 }
-                TaggedFileInner::Path(path) => {
+                MusicFileInner::Path(path) => {
                     self.file
                         .save_to_path(path, WriteOptions::default())
                         .map_err(|e| {
@@ -335,13 +336,13 @@ impl TaggedFile {
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, TaggedFileInner::Buffer { .. }) {
+                    if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
                         return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
                     }
 
                     let src_path = match &self.inner {
-                        TaggedFileInner::Path(current) => Some(current.as_str()),
-                        TaggedFileInner::Buffer { .. } => None,
+                        MusicFileInner::Path(current) => Some(current.as_str()),
+                        MusicFileInner::Buffer { .. } => None,
                     };
 
                     save_to_custom_path_impl(src_path, &path, &self.file)?;

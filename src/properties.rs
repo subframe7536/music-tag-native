@@ -1,10 +1,10 @@
 use lofty::file::{AudioFile, FileType, TaggedFileExt};
 use napi_derive::napi;
 
-use crate::tagged_file::{TaggedFile, TaggedFileInner};
+use crate::music_file::{MusicFile, MusicFileInner};
 
 #[napi]
-impl TaggedFile {
+impl MusicFile {
     /// Audio quality classification ("HQ", "SQ", or "HiRes")
     ///
     /// Quality is determined based on file format, sample rate, and bit depth:
@@ -58,8 +58,8 @@ impl TaggedFile {
         }
 
         let file_size_bytes = match &self.inner {
-            TaggedFileInner::Buffer { source_len } => *source_len as f64,
-            TaggedFileInner::Path(path) => std::fs::metadata(path)
+            MusicFileInner::Buffer { source_len } => *source_len as f64,
+            MusicFileInner::Path(path) => std::fs::metadata(path)
                 .map(|m| m.len() as f64)
                 .unwrap_or(0.0),
         };

@@ -4,9 +4,9 @@ use lofty::{
 };
 use napi::{bindgen_prelude::Null, Either, Error, Result};
 
-use crate::tagged_file::TaggedFile;
+use crate::music_file::MusicFile;
 
-impl TaggedFile {
+impl MusicFile {
     /// Execute a function on the primary or first available tag
     pub(crate) fn tag<R, F>(&self, f: F) -> Option<R>
     where

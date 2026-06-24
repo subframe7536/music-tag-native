@@ -10,14 +10,14 @@ use napi_derive::napi;
 
 use crate::{
     meta_picture::{from_lofty_picture_slice, to_lofty_picture, MetaPicture},
-    tagged_file::TaggedFile,
+    music_file::MusicFile,
     utils::{format_replaygain_gain, format_replaygain_peak, parse_replaygain_value},
 };
 
 const ERR_INVALID_RATING: &str = "Rating should be integer in [1, 5]";
 
 #[napi]
-impl TaggedFile {
+impl MusicFile {
     /// File's metadata tag type, or `null` if not recognized or no available tag
     #[napi(
         getter,

@@ -8,7 +8,7 @@ export declare class MetaPicture {
   constructor(mime: string, data: Uint8Array, desc?: string | undefined | null)
 }
 
-export declare class TaggedFile {
+export declare class MusicFile {
   /**
    * Audio quality classification ("HQ", "SQ", or "HiRes")
    *
@@ -150,8 +150,8 @@ export declare class TaggedFile {
    * @throws If the file doesn't contain a valid audio format
    * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
-  static load(path: string): Promise<TaggedFile>
-  static load(buffer: Uint8Array): Promise<TaggedFile>
+  static load(path: string): Promise<MusicFile>
+  static load(buffer: Uint8Array): Promise<MusicFile>
   /**
    * Load music file from a file path or byte buffer
    *
@@ -163,8 +163,8 @@ export declare class TaggedFile {
    * @throws If the file doesn't contain a valid audio format
    * @throws If runs in WebAssembly environments (due to file system restrictions).
    */
-  static loadSync(path: string): TaggedFile
-  static loadSync(buffer: Uint8Array): TaggedFile
+  static loadSync(path: string): MusicFile
+  static loadSync(buffer: Uint8Array): MusicFile
   /**
    * Current audio file path
    *

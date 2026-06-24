@@ -1,17 +1,17 @@
-import type { MetaPicture as MetaPictureInstance, TaggedFile as TaggedFileInstance } from './index'
+import type { MetaPicture as MetaPictureInstance, MusicFile as MusicFileInstance } from './index'
 
-export type { MetaPicture as MetaPictureInstance, TaggedFile as TaggedFileInstance } from './index'
+export type { MetaPicture as MetaPictureInstance, MusicFile as MusicFileInstance } from './index'
 
 export declare const MetaPicture: typeof MetaPictureInstance
 
-export declare const TaggedFile: Omit<typeof TaggedFileInstance, 'load' | 'loadSync'> & {
-  load: (buffer: Uint8Array) => Promise<TaggedFileInstance>
-  loadSync: (buffer: Uint8Array) => TaggedFileInstance
+export declare const MusicFile: Omit<typeof MusicFileInstance, 'load' | 'loadSync'> & {
+  load: (buffer: Uint8Array) => Promise<MusicFileInstance>
+  loadSync: (buffer: Uint8Array) => MusicFileInstance
 }
 
 declare const binding: {
   MetaPicture: typeof MetaPicture
-  TaggedFile: typeof TaggedFile
+  MusicFile: typeof MusicFile
 }
 
 export default binding

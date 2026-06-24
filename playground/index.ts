@@ -1,6 +1,6 @@
 import {
-  TaggedFile,
-  type TaggedFileInstance,
+  MusicFile,
+  type MusicFileInstance,
 } from '../music-tag-native.wasi-browser.js'
 import flacSampleUrl from '../samples/flac.flac?url'
 import mp3SampleUrl from '../samples/mp3.mp3?url'
@@ -15,7 +15,7 @@ const samples = [
 ]
 
 interface AppState {
-  tagger: TaggedFileInstance | null
+  tagger: MusicFileInstance | null
   currentBuffer: Uint8Array | null
   currentSample: string | null
   editMode: boolean
@@ -46,7 +46,7 @@ const elements = {
   downloadBtn: document.querySelector('[data-download]')!,
 }
 
-function readProperties(tagger: TaggedFileInstance) {
+function readProperties(tagger: MusicFileInstance) {
   return {
     quality: tagger.quality,
     bitDepth: tagger.bitDepth,
@@ -58,7 +58,7 @@ function readProperties(tagger: TaggedFileInstance) {
   }
 }
 
-function readTags(tagger: TaggedFileInstance) {
+function readTags(tagger: MusicFileInstance) {
   return {
     title: tagger.title,
     artist: tagger.artist,
@@ -137,7 +137,7 @@ function updateButtons() {
   resetBtn.disabled = !state.hasChanges
 }
 
-function renderPictures(tagger: TaggedFileInstance) {
+function renderPictures(tagger: MusicFileInstance) {
   const pictures = tagger.pictures
 
   if (!pictures || pictures.length === 0) {
@@ -172,7 +172,7 @@ async function loadSample(sample: (typeof samples)[0]) {
     const arrayBuffer = await response.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
 
-    const tagger = TaggedFile.loadSync(buffer)
+    const tagger = MusicFile.loadSync(buffer)
 
     state.tagger = tagger
     state.currentBuffer = buffer

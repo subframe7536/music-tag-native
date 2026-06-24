@@ -573,4 +573,4 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.MetaPicture = nativeBinding.MetaPicture
-module.exports.TaggedFile = nativeBinding.TaggedFile
+module.exports.MusicFile = nativeBinding.MusicFile

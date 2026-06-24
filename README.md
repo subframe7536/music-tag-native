@@ -40,30 +40,30 @@ bun add music-tag-native
 import { TaggedFile } from 'music-tag-native'
 
 // Load from file path
-const tagged_file = await TaggedFile.load('/path/to/audio/file.mp3')
+const taggedFile = await TaggedFile.load('/path/to/audio/file.mp3')
 // synchronous:
-const tagged_file_sync = TaggedFile.loadSync('/path/to/audio/file.mp3')
+const taggedFileSync = TaggedFile.loadSync('/path/to/audio/file.mp3')
 
 // Read metadata
-console.log(tagged_file.title)
-console.log(tagged_file.artist)
-console.log(tagged_file.album)
+console.log(taggedFile.title)
+console.log(taggedFile.artist)
+console.log(taggedFile.album)
 
 // Modify metadata
-tagged_file.title = 'New Title'
-tagged_file.artist = 'New Artist'
-tagged_file.year = 2024
+taggedFile.title = 'New Title'
+taggedFile.artist = 'New Artist'
+taggedFile.year = 2024
 
 // Remove a tag (set to null)
-tagged_file.albumArtist = null
+taggedFile.albumArtist = null
 
 // Save changes back to file
-await tagged_file.save()
+await taggedFile.save()
 // synchronous:
-tagged_file.saveSync()
+taggedFile.saveSync()
 
 // Or save to a different file path
-await tagged_file.save('/path/to/output.mp3')
+await taggedFile.save('/path/to/output.mp3')
 ```
 
 ### Browser
@@ -72,24 +72,24 @@ await tagged_file.save('/path/to/output.mp3')
 import { TaggedFile } from 'music-tag-native'
 
 // Load from buffer
-const response = await fetch('/path/to/audio/file.mp3')
+const response = await fetch('/url/to/audio/file.mp3')
 const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
 // `loadSync` is synchronous only
-const tagged_file = TaggedFile.loadSync(buffer)
+const taggedFile = TaggedFile.loadSync(buffer)
 
 // Read and modify metadata
-console.log(tagged_file.title)
-tagged_file.title = 'New Title'
+console.log(taggedFile.title)
+taggedFile.title = 'New Title'
 
 // Get modified buffer, you need to provide the original data, a new copy with updated tags will be returned
-const modifiedBuffer = await tagged_file.save(buffer)
+const modifiedBuffer = await taggedFile.save(buffer)
 // synchronous:
-const modifiedBufferSync = tagged_file.saveSync(buffer)
+const modifiedBufferSync = taggedFile.saveSync(buffer)
 
 // Display album art
-const pictures = tagged_file.pictures
+const pictures = taggedFile.pictures
 if (pictures && pictures.length > 0) {
   const picture = pictures[0]
   const blob = new Blob([picture.data], { type: picture.mimeType })

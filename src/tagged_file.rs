@@ -71,7 +71,6 @@ fn load_from_path_impl(path: &String) -> Result<TaggedFile> {
 }
 
 fn load_from_buffer_impl(buffer: Uint8Array) -> Result<TaggedFile> {
-    let source_len = buffer.len();
     let file = Probe::new(Cursor::new(&buffer))
         .guess_file_type()
         .map_err(|e| Error::new(Status::InvalidArg, e))?
@@ -80,7 +79,9 @@ fn load_from_buffer_impl(buffer: Uint8Array) -> Result<TaggedFile> {
 
     Ok(TaggedFile {
         file,
-        inner: TaggedFileInner::Buffer { source_len },
+        inner: TaggedFileInner::Buffer {
+            source_len: buffer.len(),
+        },
     })
 }
 

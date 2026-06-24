@@ -1,296 +1,306 @@
 // oxlint-disable no-unused-expressions
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { copyFileSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { MusicTagger } from '../index'
+import { TaggedFile } from '../index'
 import { base } from './const'
 
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
 
-describe('MusicTagger', () => {
-  let tagger: MusicTagger
+describe('TaggedFile', () => {
+  describe.skipIf(isWasi)('load', () => {
+    it('should load an MP3 file', async () => {
+      const path = join(base, 'mp3.mp3')
+      const taggedFile = await TaggedFile.load(path);
 
-  beforeEach(() => {
-    tagger = new MusicTagger()
-  })
-
-  afterEach(() => {
-    if (!tagger.isDisposed()) {
-      tagger.dispose()
-    }
-  })
-
-  describe('Initialization', () => {
-    it('should create a new MusicTagger instance', () => {
-      expect(tagger).toBeInstanceOf(MusicTagger)
-      expect(tagger.isDisposed()).toBe(true)
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
-    it('should be disposed initially', () => {
-      expect(tagger.isDisposed()).toBe(true)
+    it('should load a FLAC file', async () => {
+      const path = join(base, 'flac.flac')
+      const taggedFile = await TaggedFile.load(path);
+
+      expect(taggedFile.tagType).toBeTruthy()
+    })
+
+    it('should load an OGG/Opus file', async () => {
+      const path = join(base, 'ogg.opus')
+      const taggedFile = await TaggedFile.load(path);
+
+      expect(taggedFile.tagType).toBeTruthy()
+    })
+
+    it('should load a WAV file', async () => {
+      const path = join(base, 'wav.wav')
+      const taggedFile = await TaggedFile.load(path);
+
+      expect(taggedFile.tagType).toBeTruthy()
+    })
+
+    it('should throw error for non-existent file', async () => {
+      await expect(async () => {
+        await TaggedFile.load('non-existent-file.mp3')
+      }).rejects.toThrow()
+    })
+
+    it('should throw error for invalid audio file', async () => {
+      await expect(async () => {
+        await TaggedFile.load(__filename) // Try to load the test file itself
+      }).rejects.toThrow()
     })
   })
 
-  describe.skipIf(isWasi)('loadPath', () => {
+  describe.skipIf(isWasi)('loadSync', () => {
     it('should load an MP3 file', () => {
       const path = join(base, 'mp3.mp3')
-      tagger.loadPath(path)
+      const taggedFile = TaggedFile.loadSync(path);
 
-      expect(tagger.isDisposed()).toBe(false)
-      expect(tagger.tagType).toBeTruthy()
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a FLAC file', () => {
       const path = join(base, 'flac.flac')
-      tagger.loadPath(path)
+      const taggedFile = TaggedFile.loadSync(path);
 
-      expect(tagger.isDisposed()).toBe(false)
-      expect(tagger.tagType).toBeTruthy()
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load an OGG/Opus file', () => {
       const path = join(base, 'ogg.opus')
-      tagger.loadPath(path)
+      const taggedFile = TaggedFile.loadSync(path);
 
-      expect(tagger.isDisposed()).toBe(false)
-      expect(tagger.tagType).toBeTruthy()
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should load a WAV file', () => {
       const path = join(base, 'wav.wav')
-      tagger.loadPath(path)
+      const taggedFile = TaggedFile.loadSync(path);
 
-      expect(tagger.isDisposed()).toBe(false)
-      expect(tagger.tagType).toBeTruthy()
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should throw error for non-existent file', () => {
       expect(() => {
-        tagger.loadPath('non-existent-file.mp3')
+        TaggedFile.loadSync('non-existent-file.mp3')
       }).toThrow()
     })
 
     it('should throw error for invalid audio file', () => {
       expect(() => {
-        tagger.loadPath(__filename) // Try to load the test file itself
+        TaggedFile.loadSync(__filename) // Try to load the test file itself
       }).toThrow()
     })
   })
 
-  describe('loadBuffer', () => {
+  describe('loadSync', () => {
     it('should load from buffer', () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      tagger.loadBuffer(uint8Array)
+      const taggedFile = TaggedFile.loadSync(uint8Array)
 
-      expect(tagger.isDisposed()).toBe(false)
-      expect(tagger.tagType).toBeTruthy()
+      expect(taggedFile.tagType).toBeTruthy()
     })
 
     it('should throw error for invalid buffer', () => {
       const invalidBuffer = new Uint8Array([1, 2, 3, 4, 5])
 
       expect(() => {
-        tagger.loadBuffer(invalidBuffer)
+        TaggedFile.loadSync(invalidBuffer)
       }).toThrow()
     })
   })
 
-  describe.skipIf(isWasi)('dispose', () => {
-    it('should dispose a loaded file', () => {
+  describe.sequential('save', () => {
+    it('should save buffer after loading from buffer', async () => {
       const path = join(base, 'mp3.mp3')
-      tagger.loadPath(path)
-      expect(tagger.isDisposed()).toBe(false)
+      const buffer = readFileSync(path)
+      const uint8Array = new Uint8Array(buffer)
 
-      tagger.dispose()
-      expect(tagger.isDisposed()).toBe(true)
-    })
+      const taggedFile = TaggedFile.loadSync(uint8Array)
+      taggedFile.title = 'New Title'
+      const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
 
-    it('should not throw when disposing an already disposed tagger', () => {
-      expect(() => {
-        tagger.dispose()
-      }).not.toThrow()
+      expect(newBuffer).toBeInstanceOf(Uint8Array)
+      expect(newBuffer.length).toBeGreaterThan(0)
     })
   })
 
-  describe.sequential('save', () => {
+  describe.sequential('saveSync', () => {
     it('should save buffer after loading from buffer', () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      tagger.loadBuffer(uint8Array)
-      tagger.title = 'New Title'
-      expect(() => tagger.save()).not.toThrow()
+      const taggedFile = TaggedFile.loadSync(uint8Array)
+      taggedFile.title = 'New Title'
+      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
 
-      const newBuffer = tagger.buffer
       expect(newBuffer).toBeInstanceOf(Uint8Array)
       expect(newBuffer.length).toBeGreaterThan(0)
-    })
-
-    it('should throw error when disposed', () => {
-      expect(() => {
-        tagger.save()
-      }).toThrow()
     })
   })
 
   describe.skipIf(isWasi)('savePath', () => {
-    it('should save to original path', () => {
+    it('should save to original path', async () => {
       const sourcePath = join(base, 'mp3.mp3')
       const path = join(tmpdir(), `music-tag-native-save-original-${Date.now()}.mp3`)
       copyFileSync(sourcePath, path)
 
-      const verifyTagger = new MusicTagger()
       try {
-        tagger.loadPath(path)
-        tagger.title = 'Saved Title'
+        const taggedFile = await TaggedFile.load(path);
+        taggedFile.title = 'Saved Title'
 
-        expect(() => {
-          tagger.save()
-        }).not.toThrow()
+        await taggedFile.save();
 
-        verifyTagger.loadPath(path)
-        expect(verifyTagger.title).toBe('Saved Title')
+        const verifyTaggedFile = await TaggedFile.load(path);
+        expect(verifyTaggedFile.title).toBe('Saved Title')
       } finally {
-        verifyTagger.dispose()
         rmSync(path, { force: true })
       }
     })
 
-    it('should throw error when disposed', () => {
-      expect(() => {
-        tagger.save()
-      }).toThrow()
-    })
-
-    it('should save to custom path', () => {
+    it('should save to custom path', async () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
-      tagger.loadPath(path)
-      tagger.title = 'Saved Custom Path Title'
+      const taggedFile = await TaggedFile.load(path);
+      taggedFile.title = 'Saved Custom Path Title'
 
-      expect(() => {
-        tagger.save(targetPath)
-      }).not.toThrow()
+      await taggedFile.save(targetPath);
 
-      const newTagger = new MusicTagger()
       try {
-        newTagger.loadPath(targetPath)
-        expect(newTagger.title).toBe('Saved Custom Path Title')
+        const newTaggedFile = await TaggedFile.load(targetPath);
+        expect(newTaggedFile.title).toBe('Saved Custom Path Title')
       } finally {
-        newTagger.dispose()
         rmSync(targetPath, { force: true })
       }
     })
   })
 
-  describe('buffer getter', () => {
-    it('should return buffer when loaded from buffer', () => {
+  describe.skipIf(isWasi)('savePathSync', () => {
+    it('should save to original path', () => {
+      const sourcePath = join(base, 'mp3.mp3')
+      const path = join(tmpdir(), `music-tag-native-save-original-${Date.now()}.mp3`)
+      copyFileSync(sourcePath, path)
+
+      try {
+        const taggedFile = TaggedFile.loadSync(path);
+        taggedFile.title = 'Saved Title'
+
+        taggedFile.saveSync();
+
+        const verifyTaggedFile = TaggedFile.loadSync(path);
+        expect(verifyTaggedFile.title).toBe('Saved Title')
+      } finally {
+        rmSync(path, { force: true })
+      }
+    })
+
+    it('should save to custom path', () => {
       const path = join(base, 'mp3.mp3')
-      const buffer = readFileSync(path)
-      const uint8Array = new Uint8Array(buffer)
+      const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
+      const taggedFile = TaggedFile.loadSync(path);
+      taggedFile.title = 'Saved Custom Path Title'
 
-      tagger.loadBuffer(uint8Array)
-      const retrievedBuffer = tagger.buffer
+      taggedFile.saveSync(targetPath);
 
-      expect(retrievedBuffer).toBeInstanceOf(Uint8Array)
-      expect(retrievedBuffer.length).toBeGreaterThan(0)
-    })
-
-    it.skipIf(isWasi)('should return empty buffer when loaded from path', () => {
-      const path = join(base, 'mp3.mp3')
-      tagger.loadPath(path)
-      const buffer = tagger.buffer
-
-      expect(buffer).toBeInstanceOf(Uint8Array)
-      // Buffer might be empty or might contain data depending on implementation
-    })
-
-    it('should throw error when disposed', () => {
-      expect(() => {
-        tagger.buffer
-      }).toThrow()
-    })
-  })
-
-  describe('Error handling', () => {
-    it('should throw error when accessing properties on disposed tagger', () => {
-      expect(() => {
-        tagger.title
-      }).toThrow()
-
-      expect(() => {
-        tagger.quality
-      }).toThrow()
-
-      expect(() => {
-        tagger.duration
-      }).toThrow()
-    })
-
-    it('should throw error when setting properties on disposed tagger', () => {
-      expect(() => {
-        tagger.title = 'Test'
-      }).toThrow()
+      try {
+        const newTaggedFile = TaggedFile.loadSync(targetPath);
+        expect(newTaggedFile.title).toBe('Saved Custom Path Title')
+      } finally {
+        rmSync(targetPath, { force: true })
+      }
     })
   })
 
   describe('Integration tests', () => {
-    it('should load, modify, and save metadata', () => {
+    it('async should load, modify, and save metadata', async () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
       const uint8Array = new Uint8Array(buffer)
 
-      tagger.loadBuffer(uint8Array)
+      const taggedFile = TaggedFile.loadSync(uint8Array);
 
       // Modify metadata
-      tagger.title = 'Modified Title'
-      tagger.artist = 'Modified Artist'
-      tagger.year = 2024
-      tagger.genre = 'Test Genre'
+      taggedFile.title = 'Modified Title'
+      taggedFile.artist = 'Modified Artist'
+      taggedFile.year = 2024
+      taggedFile.genre = 'Test Genre'
 
       // Verify changes
-      expect(tagger.title).toBe('Modified Title')
-      expect(tagger.artist).toBe('Modified Artist')
-      expect(tagger.year).toBe(2024)
-      expect(tagger.genre).toBe('Test Genre')
+      expect(taggedFile.title).toBe('Modified Title')
+      expect(taggedFile.artist).toBe('Modified Artist')
+      expect(taggedFile.year).toBe(2024)
+      expect(taggedFile.genre).toBe('Test Genre')
 
       // Save and reload
-      tagger.save()
-      const newBuffer = tagger.buffer
+      const newBuffer = await taggedFile.save(uint8Array) as Uint8Array;
 
       // Create new tagger and load the modified buffer
-      const newTagger = new MusicTagger()
-      newTagger.loadBuffer(newBuffer)
+      const newTaggedFile = TaggedFile.loadSync(newBuffer);
 
       // Verify persisted changes
-      expect(newTagger.title).toBe('Modified Title')
-      expect(newTagger.artist).toBe('Modified Artist')
-      expect(newTagger.year).toBe(2024)
-      expect(newTagger.genre).toBe('Test Genre')
-
-      newTagger.dispose()
+      expect(newTaggedFile.title).toBe('Modified Title')
+      expect(newTaggedFile.artist).toBe('Modified Artist')
+      expect(newTaggedFile.year).toBe(2024)
+      expect(newTaggedFile.genre).toBe('Test Genre')
     })
 
-    it.skipIf(isWasi)('should handle multiple file formats', () => {
+    it('sync should load, modify, and save metadata', () => {
+      const path = join(base, 'mp3.mp3')
+      const buffer = readFileSync(path)
+      const uint8Array = new Uint8Array(buffer)
+
+      const taggedFile = TaggedFile.loadSync(uint8Array);
+
+      // Modify metadata
+      taggedFile.title = 'Modified Title'
+      taggedFile.artist = 'Modified Artist'
+      taggedFile.year = 2024
+      taggedFile.genre = 'Test Genre'
+
+      // Verify changes
+      expect(taggedFile.title).toBe('Modified Title')
+      expect(taggedFile.artist).toBe('Modified Artist')
+      expect(taggedFile.year).toBe(2024)
+      expect(taggedFile.genre).toBe('Test Genre')
+
+      // Save and reload
+      const newBuffer = taggedFile.saveSync(uint8Array) as Uint8Array;
+
+      // Create new tagger and load the modified buffer
+      const newTaggedFile = TaggedFile.loadSync(newBuffer);
+
+      // Verify persisted changes
+      expect(newTaggedFile.title).toBe('Modified Title')
+      expect(newTaggedFile.artist).toBe('Modified Artist')
+      expect(newTaggedFile.year).toBe(2024)
+      expect(newTaggedFile.genre).toBe('Test Genre')
+    })
+
+    it.skipIf(isWasi)('async should handle multiple file formats', async () => {
       const formats = ['mp3.mp3', 'flac.flac', 'ogg.opus', 'wav.wav']
 
       for (const file of formats) {
         const path = join(base, file)
-        const tagger = new MusicTagger()
 
-        try {
-          tagger.loadPath(path)
-          expect(tagger.isDisposed()).toBe(false)
-          expect(tagger.tagType).toBeTruthy()
-          expect(tagger.duration).toBeGreaterThanOrEqual(0)
-        } finally {
-          tagger.dispose()
-        }
+        const taggedFile = await TaggedFile.load(path);
+        expect(taggedFile.tagType).toBeTruthy()
+        expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
+      }
+    })
+
+    it.skipIf(isWasi)('sync should handle multiple file formats', () => {
+      const formats = ['mp3.mp3', 'flac.flac', 'ogg.opus', 'wav.wav']
+
+      for (const file of formats) {
+        const path = join(base, file)
+
+        const taggedFile = TaggedFile.loadSync(path);
+        expect(taggedFile.tagType).toBeTruthy()
+        expect(taggedFile.duration).toBeGreaterThanOrEqual(0)
       }
     })
   })

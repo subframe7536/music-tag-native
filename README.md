@@ -37,85 +37,83 @@ bun add music-tag-native
 ### Node.js
 
 ```ts
-import { MusicTagger } from 'music-tag-native'
-
-const tagger = new MusicTagger()
+import { TaggedFile } from 'music-tag-native'
 
 // Load from file path
-tagger.loadPath('/path/to/audio/file.mp3')
+const taggedFile = await TaggedFile.load('/path/to/audio/file.mp3')
+// synchronous:
+const taggedFileSync = TaggedFile.loadSync('/path/to/audio/file.mp3')
 
 // Read metadata
-console.log(tagger.title)
-console.log(tagger.artist)
-console.log(tagger.album)
+console.log(taggedFile.title)
+console.log(taggedFile.artist)
+console.log(taggedFile.album)
 
 // Modify metadata
-tagger.title = 'New Title'
-tagger.artist = 'New Artist'
-tagger.year = 2024
+taggedFile.title = 'New Title'
+taggedFile.artist = 'New Artist'
+taggedFile.year = 2024
 
 // Remove a tag (set to null)
-tagger.albumArtist = null
+taggedFile.albumArtist = null
 
 // Save changes back to file
-tagger.save()
+await taggedFile.save()
+// synchronous:
+taggedFile.saveSync()
 
 // Or save to a different file path
-tagger.save('/path/to/output.mp3')
-
-// Clean up resources
-tagger.dispose()
+await taggedFile.save('/path/to/output.mp3')
 ```
 
 ### Browser
 
 ```ts
-import { MusicTagger } from 'music-tag-native'
-
-const tagger = new MusicTagger()
+import { TaggedFile } from 'music-tag-native'
 
 // Load from buffer
-const response = await fetch('/path/to/audio/file.mp3')
+const response = await fetch('/url/to/audio/file.mp3')
 const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
-tagger.loadBuffer(buffer)
+// `loadSync` is synchronous only
+const taggedFile = TaggedFile.loadSync(buffer)
 
 // Read and modify metadata
-console.log(tagger.title)
-tagger.title = 'New Title'
+console.log(taggedFile.title)
+taggedFile.title = 'New Title'
 
-// Get modified buffer
-const modifiedBuffer = tagger.save()
+// Get modified buffer, you need to provide the original data, a new copy with updated tags will be returned
+const modifiedBuffer = await taggedFile.save(buffer)
+// synchronous:
+const modifiedBufferSync = taggedFile.saveSync(buffer)
 
 // Display album art
-const pictures = tagger.pictures
-if (pictures.length > 0) {
+const pictures = taggedFile.pictures
+if (pictures && pictures.length > 0) {
   const picture = pictures[0]
   const blob = new Blob([picture.data], { type: picture.mimeType })
   const url = URL.createObjectURL(blob)
   document.querySelector('img').src = url
 }
-
-tagger.dispose()
 ```
 
 ## API Reference
 
-### MusicTagger
+### TaggedFile
 
 #### Loading Files
 
-- `loadPath(path: string): void` - Load audio file from path (Node.js only)
-- `loadBuffer(buffer: Uint8Array): void` - Load audio file from buffer
+- `TaggedFile.load(path: string): Promise<TaggedFile>` - Load audio file from path (Node.js only)
+- `TaggedFile.loadSync(path: string): TaggedFile` - Load audio file from path (Node.js only)
+- `TaggedFile.load(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
+- `TaggedFile.loadSync(buffer: Uint8Array): TaggedFile` - Load audio file from buffer
 
 #### Saving Changes
 
-- `save(path?: string | null): Uint8Array | undefined` - Save changes. In Node.js, saves to original path by default, or to `path` when provided. In browser/wasm, `path` is not supported.
-
-#### Resource Management
-
-- `dispose(): void` - Clean up resources. Always call when done with the tagger instance
+- `save(bufferOrPath?: Uint8Array | string | null): Promise<Uint8Array | void>` - Save changes asynchronously. Files loaded from a path are saved to the original path by default, or to `bufferOrPath` when a path is provided. Files loaded from a buffer require the original buffer and return an updated copy.
+- `saveSync(bufferOrPath?: Uint8Array | string | null): Uint8Array | undefined` - Synchronous version of `save`.
+- `path(): string | null` - Return the source path for path-loaded files, or `null` for buffer-loaded files.
 
 #### Metadata Properties (Read/Write)
 
@@ -133,42 +131,51 @@ All properties can be read and written. Set to `null` to remove a tag.
 - `trackNumber: number | null`
 - `trackTotal: number | null`
 - `discNumber: number | null`
-- `discTotal: number | null`
+- `discsTotal: number | null`
+- `conductor: string | null`
+- `lyricist: string | null`
+- `publisher: string | null`
+- `lyrics: string | null`
+- `copyright: string | null`
+- `trackReplayGain: number | null`
+- `trackReplayPeak: number | null`
+- `albumReplayGain: number | null`
+- `albumReplayPeak: number | null`
+- `pictures: MetaPicture[] | null`
 
 #### Audio Properties (Read-Only)
 
-- `duration: number` - Duration in seconds
-- `overallBitrate: number` - Overall bitrate in kbps
-- `audioBitrate: number` - Audio bitrate in kbps
-- `sampleRate: number` - Sample rate in Hz
-- `bitDepth: number` - Bit depth
-- `channels: number` - Number of channels
-- `audioQuality: 'HQ' | 'SQ' | 'HiRes' | null` - Audio quality classification
+- `quality: 'HQ' | 'SQ' | 'HiRes'` - Audio quality classification
+- `bitDepth: number | null` - Bit depth
+- `bitRate: number | null` - Audio bitrate in kbps
+- `sampleRate: number | null` - Sample rate in Hz
+- `channels: number | null` - Number of channels
+- `duration: number` - Duration in milliseconds
+- `tagType: 'AIFF' | 'APE' | 'ID3V1' | 'ID3V2' | 'ILST' | 'RIFF' | 'VORBIS' | null` - Metadata tag type
 
 #### Album Art
 
-- `pictures: MetaPicture[]` - Array of embedded pictures
-- `setPictures(pictures: MetaPicture[]): void` - Replace all pictures
+- `pictures: MetaPicture[] | null` - Embedded pictures. Set to `null` to remove all pictures.
 
 #### ReplayGain
 
-- `replayGainTrackGain: number | null`
-- `replayGainTrackPeak: number | null`
-- `replayGainAlbumGain: number | null`
-- `replayGainAlbumPeak: number | null`
+- `trackReplayGain: number | null`
+- `trackReplayPeak: number | null`
+- `albumReplayGain: number | null`
+- `albumReplayPeak: number | null`
 
 ### MetaPicture
 
 Properties for album art and embedded images:
 
-- `pictureType: PictureType` - Type of picture (e.g., 'CoverFront', 'CoverBack')
-- `mimeType: string` - MIME type (e.g., 'image/jpeg', 'image/png')
-- `description: string | null` - Optional description
+- `coverType: PictureType` - Type of picture
+- `mimeType?: string` - MIME type (e.g., 'image/jpeg', 'image/png')
+- `description?: string` - Optional description
 - `data: Uint8Array` - Image data
 
 #### PictureType Values
 
-`'Other'`, `'Icon'`, `'OtherIcon'`, `'CoverFront'`, `'CoverBack'`, `'Leaflet'`, `'Media'`, `'LeadArtist'`, `'Artist'`, `'Conductor'`, `'Band'`, `'Composer'`, `'Lyricist'`, `'RecordingLocation'`, `'DuringRecording'`, `'DuringPerformance'`, `'ScreenCapture'`, `'BrightFish'`, `'Illustration'`, `'BandLogo'`, `'PublisherLogo'`, `'Undefined'`
+`'Cover Art (Other)'`, `'Cover Art (Png Icon)'`, `'Cover Art (Icon)'`, `'Cover Art (Front)'`, `'Cover Art (Back)'`, `'Cover Art (Leaflet)'`, `'Cover Art (Media)'`, `'Cover Art (Lead Artist)'`, `'Cover Art (Artist)'`, `'Cover Art (Conductor)'`, `'Cover Art (Band)'`, `'Cover Art (Composer)'`, `'Cover Art (Lyricist)'`, `'Cover Art (Recording Location)'`, `'Cover Art (During Recording)'`, `'Cover Art (During Performance)'`, `'Cover Art (Video Capture)'`, `'Cover Art (Fish)'`, `'Cover Art (Illustration)'`, `'Cover Art (Band Logotype)'`, `'Cover Art (Publisher Logotype)'`, `'Unknown'`
 
 ## Platform Support
 

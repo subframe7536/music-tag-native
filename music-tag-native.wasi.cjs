@@ -109,4 +109,4 @@ const { instance: __napiInstance, module: __wasiModule, napiModule: __napiModule
 })
 module.exports = __napiModule.exports
 module.exports.MetaPicture = __napiModule.exports.MetaPicture
-module.exports.MusicTagger = __napiModule.exports.MusicTagger
+module.exports.TaggedFile = __napiModule.exports.TaggedFile

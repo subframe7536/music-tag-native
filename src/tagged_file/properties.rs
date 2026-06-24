@@ -41,7 +41,7 @@ impl TaggedFile {
     ///
     /// @note If the audio properties don't provide a bitrate, this method calculates
     /// an approximate bitrate based on file size and duration, including metadata.
-    /// The calculated bitrate is constrained between MIN_BITRATE and MAX_BITRATE.
+    /// The calculated bitrate is constrained between 8 and 10,000 kbps.
     #[napi(getter)]
     pub fn bit_rate(&self) -> Result<Option<u32>> {
         if let Some(bitrate) = self.file.properties().audio_bitrate() {
@@ -79,14 +79,13 @@ impl TaggedFile {
 
     /// Number of audio channels, or `null` if not available
     ///
-    /// Common values: 1 (mono), 2 (stereo), 6 (5.1 surround)
     /// Common values: 1 (mono), 2 (stereo), 6 (5.1 surround), 8 (7.1 surround)
     #[napi(getter)]
     pub fn channels(&self) -> Result<Option<u8>> {
         Ok(self.file.properties().channels())
     }
 
-    /// Audio duration in seconds, or `null` if not available
+    /// Audio duration in milliseconds, 0 if not available
     #[napi(getter)]
     pub fn duration(&self) -> Result<u32> {
         Ok(self.file.properties().duration().as_millis() as u32)

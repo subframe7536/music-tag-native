@@ -321,7 +321,7 @@ jobs:
     env:
       PUBLISH_FLAGS: '--provenance --access public --no-git-checks'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check release
         id: check-release
         run: |
@@ -375,17 +375,65 @@ jobs:
         if: steps.check-release.outputs.should-publish == 'true'
         run: |
           TAG=${{ steps.check-release.outputs.tag }}
+
+          package_id() {
+            node -p "const p = require('${1}/package.json'); \`\${p.name}@\${p.version}\`"
+          }
+
+          dry_run_if_missing() {
+            local package_dir=$1
+            local package_id
+            package_id=$(package_id "$package_dir")
+
+            if npm view "$package_id" version >/dev/null 2>&1; then
+              echo "$package_id already exists, skipping dry run"
+              return
+            fi
+
+            pnpm publish "$package_dir" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+          }
+
           for package in ./npm/*/
           do
-            pnpm publish "$package" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+            dry_run_if_missing "$package"
           done
-          pnpm publish ./ --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+          dry_run_if_missing .
       - name: Publish
         if: steps.check-release.outputs.should-publish == 'true'
         run: |
           TAG=${{ steps.check-release.outputs.tag }}
+
+          package_id() {
+            node -p "const p = require('${1}/package.json'); \`\${p.name}@\${p.version}\`"
+          }
+
+          publish_if_missing() {
+            local package_dir=$1
+            local package_id
+            package_id=$(package_id "$package_dir")
+
+            if npm view "$package_id" version >/dev/null 2>&1; then
+              echo "$package_id already exists, skipping publish"
+              return
+            fi
+
+            pnpm publish "$package_dir" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} ${2:-}
+          }
+
+          root_package=$(package_id .)
+
           # Trusted publishing is configured, publish token is not required.
-          # Update optionalDependencies in root package.json and publish root package.
-          pnpm publish ./ -r --tag "$TAG" ${{ env.PUBLISH_FLAGS }}
+          # Prepare optionalDependencies and release assets without publishing optional packages twice.
+          if ! npm view "$root_package" version >/dev/null 2>&1; then
+            pnpm napi prepublish -t npm --skip-optional-publish
+          else
+            echo "$root_package already exists, skipping root package publish"
+          fi
+
+          for package in ./npm/*/
+          do
+            publish_if_missing "$package"
+          done
+          publish_if_missing . --ignore-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

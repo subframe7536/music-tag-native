@@ -1,3 +1,4 @@
+430 test/action.test.ts
 import {
   copyFileSync,
   linkSync,
@@ -418,3 +419,13 @@ describe('MusicFile', () => {
     it.skipIf(isWasi)('sync should handle multiple file formats', () => {
       const formats = ['mp3.mp3', 'flac.flac', 'ogg.opus', 'wav.wav']
 
+      for (const file of formats) {
+        const path = join(base, file)
+
+        const musicFile = MusicFile.loadSync(path)
+        expect(musicFile.tagType).toBeTruthy()
+        expect(musicFile.duration).toBeGreaterThanOrEqual(0)
+      }
+    })
+  })
+})

@@ -76,8 +76,8 @@ const response = await fetch('/url/to/audio/file.mp3')
 const arrayBuffer = await response.arrayBuffer()
 const buffer = new Uint8Array(arrayBuffer)
 
-// `loadSync` is synchronous only
-const musicFile = MusicFile.loadSync(buffer)
+// Buffer parsing is asynchronous and rejects when the data is invalid.
+const musicFile = await MusicFile.load(buffer)
 
 // Read and modify metadata
 console.log(musicFile.title)
@@ -85,7 +85,7 @@ musicFile.title = 'New Title'
 
 // Get modified buffer, you need to provide the original data, a new copy with updated tags will be returned
 const modifiedBuffer = await musicFile.save(buffer)
-// synchronous:
+// Synchronous APIs block the calling thread while parsing or writing.
 const modifiedBufferSync = musicFile.saveSync(buffer)
 
 // Display album art
@@ -106,10 +106,13 @@ if (pictures && pictures.length > 0) {
 
 - `MusicFile.load(path: string): Promise<MusicFile>` - Load audio file from path (Node.js only)
 - `MusicFile.loadSync(path: string): MusicFile` - Load audio file from path (Node.js only)
-- `MusicFile.load(buffer: Uint8Array): MusicFile` - Load audio file from buffer
+- `MusicFile.load(buffer: Uint8Array): Promise<MusicFile>` - Load audio file from buffer; parsing errors reject the promise
 - `MusicFile.loadSync(buffer: Uint8Array): MusicFile` - Load audio file from buffer
 
 #### Saving Changes
+
+> [!note]
+> Path loading and saving are available in Node.js only.
 
 - `save(bufferOrPath?: Uint8Array | string | null): Promise<Uint8Array | void>` - Save changes asynchronously. Files loaded from a path are saved to the original path by default, or to `bufferOrPath` when a path is provided. Files loaded from a buffer require the original buffer and return an updated copy.
 - `saveSync(bufferOrPath?: Uint8Array | string | null): Uint8Array | undefined` - Synchronous version of `save`.

@@ -16,7 +16,7 @@ const __emnapiContext = __emnapiGetDefaultContext()
 
 
 const __sharedMemory = new WebAssembly.Memory({
-  initial: 4000,
+  initial: 1024,
   maximum: 65536,
   shared: true,
 })

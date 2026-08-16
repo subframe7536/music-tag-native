@@ -170,7 +170,7 @@ async function loadSample(sample: (typeof samples)[0]) {
     const arrayBuffer = await response.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
 
-    const tagger = MusicFile.loadSync(buffer)
+    const tagger = await MusicFile.load(buffer)
 
     state.tagger = tagger
     state.currentBuffer = buffer
@@ -205,7 +205,7 @@ function toggleEditMode() {
   }
 }
 
-function saveChanges() {
+async function saveChanges() {
   if (!state.tagger || !state.hasChanges) {
     return
   }
@@ -225,7 +225,8 @@ function saveChanges() {
           : value
   })
 
-  state.currentBuffer = state.tagger.saveSync(state.currentBuffer!)
+  state.currentBuffer = await state.tagger.save(state.currentBuffer!)
+  state.tagger = await MusicFile.load(state.currentBuffer)
 
   state.originalTags = readTags(state.tagger)
   state.hasChanges = false
@@ -302,7 +303,9 @@ elements.sampleList.addEventListener('click', (e) => {
 })
 
 elements.editModeBtn.addEventListener('click', toggleEditMode)
-elements.saveBtn.addEventListener('click', saveChanges)
+elements.saveBtn.addEventListener('click', () => {
+  void saveChanges()
+})
 elements.resetBtn.addEventListener('click', resetChanges)
 elements.downloadBtn.addEventListener('click', downloadModifiedFile)
 

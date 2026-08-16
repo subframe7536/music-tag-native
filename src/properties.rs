@@ -86,7 +86,7 @@ impl MusicFile {
 
     /// Audio duration in milliseconds, 0 if not available
     #[napi(getter)]
-    pub fn duration(&self) -> u32 {
-        self.file.properties().duration().as_millis() as u32
+    pub fn duration(&self) -> f64 {
+        self.file.properties().duration().as_secs_f64() * 1000.0
     }
 }

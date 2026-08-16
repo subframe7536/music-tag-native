@@ -14,7 +14,7 @@ const samples = [
   { file: 'wav.wav', description: 'WAV' },
 ] as const
 
-describe.sequential('Cross-format Metadata', () => {
+describe('Cross-format Metadata', { concurrent: false }, () => {
   for (const sample of samples) {
     const buf = readFileSync(join(base, sample.file))
     let musicFile: MusicFile

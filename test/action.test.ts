@@ -1,4 +1,3 @@
-430 test/action.test.ts
 import {
   copyFileSync,
   linkSync,

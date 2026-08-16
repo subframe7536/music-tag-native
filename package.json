@@ -42,8 +42,8 @@
     "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "typecheck": "tsc --noEmit",
-    "oxc": "oxlint --fix && oxfmt",
-    "qa": "pnpm run oxc && pnpm run typecheck",
+    "fix": "oxlint --fix && oxfmt",
+    "qa": "oxlint && oxfmt --check && pnpm run typecheck",
     "test": "vitest run",
     "test:rebuild": "pnpm run build:debug && vitest run",
     "play": "vite serve playground",
@@ -83,7 +83,11 @@
       "armv7-unknown-linux-gnueabihf",
       "armv7-unknown-linux-musleabihf",
       "wasm32-wasi-preview1-threads"
-    ]
+    ],
+    "wasm": {
+      "initialMemory": 1024,
+      "maximumMemory": 65536
+    }
   },
   "engines": {
     "node": ">= 10"

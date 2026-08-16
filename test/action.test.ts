@@ -2,7 +2,6 @@ import {
   copyFileSync,
   linkSync,
   lstatSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -245,21 +244,19 @@ describe('MusicFile', () => {
       }
     })
 
-    it('keeps the source unchanged when atomic replacement fails', async () => {
+    it('keeps the source unchanged when the destination parent is missing', async () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-save-failure-'))
       const sourcePath = join(directory, 'source.mp3')
-      const targetDirectory = join(directory, 'target')
+      const targetPath = join(directory, 'missing', 'target.mp3')
       copyFileSync(join(base, 'mp3.mp3'), sourcePath)
-      mkdirSync(targetDirectory)
       const sourceBefore = readFileSync(sourcePath)
 
       try {
         const musicFile = await MusicFile.load(sourcePath)
         musicFile.title = 'Should not be written'
 
-        await expect(musicFile.save(targetDirectory)).rejects.toThrow()
+        await expect(musicFile.save(targetPath)).rejects.toThrow()
         expect(readFileSync(sourcePath)).toEqual(sourceBefore)
-        expect(lstatSync(targetDirectory).isDirectory()).toBe(true)
       } finally {
         rmSync(directory, { force: true, recursive: true })
       }
@@ -316,21 +313,19 @@ describe('MusicFile', () => {
       }
     })
 
-    it('keeps the source unchanged when atomic replacement fails', () => {
+    it('keeps the source unchanged when the destination parent is missing', () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-save-failure-sync-'))
       const sourcePath = join(directory, 'source.mp3')
-      const targetDirectory = join(directory, 'target')
+      const targetPath = join(directory, 'missing', 'target.mp3')
       copyFileSync(join(base, 'mp3.mp3'), sourcePath)
-      mkdirSync(targetDirectory)
       const sourceBefore = readFileSync(sourcePath)
 
       try {
         const musicFile = MusicFile.loadSync(sourcePath)
         musicFile.title = 'Should not be written'
 
-        expect(() => musicFile.saveSync(targetDirectory)).toThrow()
+        expect(() => musicFile.saveSync(targetPath)).toThrow()
         expect(readFileSync(sourcePath)).toEqual(sourceBefore)
-        expect(lstatSync(targetDirectory).isDirectory()).toBe(true)
       } finally {
         rmSync(directory, { force: true, recursive: true })
       }

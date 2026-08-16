@@ -160,7 +160,12 @@ jobs:
         if: matrix.settings.target == 'wasm32-wasip1-threads'
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: '*.wasm'
+          path: |
+            *.wasm
+            music-tag-native.wasi.cjs
+            music-tag-native.wasi-browser.js
+            wasi-worker.mjs
+            wasi-worker-browser.mjs
           if-no-files-found: error
 
   test-macOS-windows-binding:

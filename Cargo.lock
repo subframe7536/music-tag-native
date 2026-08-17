@@ -271,7 +271,6 @@ dependencies = [
  "bitflags",
  "ctor",
  "futures",
- "libc",
  "napi-build",
  "napi-sys",
  "nohash-hasher",

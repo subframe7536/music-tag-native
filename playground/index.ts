@@ -18,6 +18,8 @@ interface AppState {
   currentSample: string | null
   editMode: boolean
   hasChanges: boolean
+  operationId: number
+  editRevision: number
   originalTags: Record<string, any>
 }
 
@@ -27,6 +29,8 @@ const state: AppState = {
   currentSample: null,
   editMode: false,
   hasChanges: false,
+  operationId: 0,
+  editRevision: 0,
   originalTags: {},
 }
 
@@ -116,6 +120,8 @@ function handleTagEdit(e: Event) {
   const originalValue = state.originalTags[tagName]
   const newValue = input.value.trim() || null
 
+  state.editRevision += 1
+
   const row = input.closest('tr')!
   if (String(originalValue) !== String(newValue)) {
     row.classList.add('tag-modified')
@@ -162,6 +168,8 @@ function renderPictures(tagger: MusicFileInstance) {
 }
 
 async function loadSample(sample: (typeof samples)[0]) {
+  const operationId = ++state.operationId
+
   try {
     elements.status.textContent = `Loading ${sample.name}...`
     elements.status.classList.remove('error')
@@ -172,12 +180,17 @@ async function loadSample(sample: (typeof samples)[0]) {
 
     const tagger = await MusicFile.load(buffer)
 
+    if (operationId !== state.operationId) {
+      return
+    }
+
     state.tagger = tagger
     state.currentBuffer = buffer
     state.currentSample = sample.format
     state.originalTags = readTags(tagger)
     state.hasChanges = false
     state.editMode = false
+    state.editRevision += 1
 
     elements.status.textContent = `✓ Loaded ${sample.name} successfully`
 
@@ -190,6 +203,10 @@ async function loadSample(sample: (typeof samples)[0]) {
     ;(elements.downloadSection as HTMLButtonElement).style.display = 'none'
     updateButtons()
   } catch (error) {
+    if (operationId !== state.operationId) {
+      return
+    }
+
     elements.status.textContent = `✗ Error: ${error}`
     elements.status.classList.add('error')
     console.error(error)
@@ -206,39 +223,67 @@ function toggleEditMode() {
 }
 
 async function saveChanges() {
-  if (!state.tagger || !state.hasChanges) {
+  const tagger = state.tagger
+  const sourceBuffer = state.currentBuffer
+
+  if (!tagger || !sourceBuffer || !state.hasChanges) {
     return
   }
 
-  const inputs = elements.tags.querySelectorAll('.editable-input') as NodeListOf<HTMLInputElement>
+  const operationId = ++state.operationId
+  const editRevision = state.editRevision
 
-  inputs.forEach((input) => {
-    const tagName = input.dataset.tag!
-    const value = input.value.trim() || null
+  try {
+    const inputs = elements.tags.querySelectorAll('.editable-input') as NodeListOf<HTMLInputElement>
 
-    // @ts-expect-error dynamic property access
-    state.tagger[tagName] =
-      value === null
-        ? null
-        : tagName === 'year' || tagName.includes('Number') || tagName.includes('Total')
-          ? Number(value) || null
-          : value
-  })
+    inputs.forEach((input) => {
+      const tagName = input.dataset.tag!
+      const value = input.value.trim() || null
 
-  state.currentBuffer = await state.tagger.save(state.currentBuffer!)
-  state.tagger = await MusicFile.load(state.currentBuffer)
+      // @ts-expect-error dynamic property access
+      tagger[tagName] =
+        value === null
+          ? null
+          : tagName === 'year' || tagName.includes('Number') || tagName.includes('Total')
+            ? Number(value) || null
+            : value
+    })
 
-  state.originalTags = readTags(state.tagger)
-  state.hasChanges = false
+    const savedBuffer = await tagger.save(sourceBuffer)
+    const savedTagger = await MusicFile.load(savedBuffer)
 
-  elements.status.textContent = '✓ Changes saved to buffer!'
-  ;(elements.downloadSection as HTMLElement).style.display = 'block'
+    if (
+      operationId !== state.operationId ||
+      state.tagger !== tagger ||
+      state.currentBuffer !== sourceBuffer ||
+      state.editRevision !== editRevision
+    ) {
+      return
+    }
 
-  renderTable(elements.tags, readTags(state.tagger), true)
-  updateButtons()
+    state.currentBuffer = savedBuffer
+    state.tagger = savedTagger
+    state.originalTags = readTags(savedTagger)
+    state.hasChanges = false
 
-  console.log('✓ Tags updated successfully')
-  console.table(readTags(state.tagger))
+    elements.status.textContent = '✓ Changes saved to buffer!'
+    elements.status.classList.remove('error')
+    ;(elements.downloadSection as HTMLElement).style.display = 'block'
+
+    renderTable(elements.tags, readTags(savedTagger), true)
+    updateButtons()
+
+    console.log('✓ Tags updated successfully')
+    console.table(readTags(savedTagger))
+  } catch (error) {
+    if (operationId !== state.operationId) {
+      return
+    }
+
+    elements.status.textContent = `✗ Save error: ${error}`
+    elements.status.classList.add('error')
+    console.error(error)
+  }
 }
 
 function resetChanges() {
@@ -246,6 +291,7 @@ function resetChanges() {
     return
   }
 
+  state.editRevision += 1
   state.hasChanges = false
   renderTable(elements.tags, state.originalTags, true)
   updateButtons()

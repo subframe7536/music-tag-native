@@ -39,7 +39,7 @@
     "artifacts": "napi artifacts",
     "dev": "napi build --watch --platform --target wasm32-wasip1-threads",
     "build": "napi build --platform --release --strip",
-    "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
+    "build:wasm": "napi build --platform --release --strip --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "typecheck": "tsc --noEmit",
     "fix": "oxlint --fix && oxfmt",

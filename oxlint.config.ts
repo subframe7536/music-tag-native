@@ -7,6 +7,8 @@ export default subfLint({
     'wasi-worker.mjs',
     'wasi-worker-browser.mjs',
     'music-tag-native.wasi-browser.js',
+    'music-tag-native.wasi-browser.d.ts',
     'music-tag-native.wasi.cjs',
+    'music-tag-native.wasi.d.cts',
   ],
 })

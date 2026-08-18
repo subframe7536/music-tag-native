@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { MetaPicture } from '../index'
+import { MetaPicture } from '../index.js'
 
 describe('MetaPicture', () => {
   it('should create a MetaPicture instance', () => {

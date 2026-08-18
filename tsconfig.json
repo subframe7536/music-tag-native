@@ -2,7 +2,9 @@
   "extends": "@subf/config/tsconfig-lib",
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    "moduleResolution": "bundler",
+    "module": "esnext"
   },
   "include": ["index.d.ts", "test", "playground"]
 }

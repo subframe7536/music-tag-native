@@ -3,9 +3,9 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { MusicFile } from '../index'
+import { MusicFile } from '../index.js'
 
-import { base } from './const'
+import { base } from './const.ts'
 
 const source = new Uint8Array(readFileSync(join(base, 'mp3.mp3')))
 

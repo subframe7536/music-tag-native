@@ -3,9 +3,9 @@ import { join } from 'node:path'
 
 import { describe, it, expect, beforeEach } from 'vitest'
 
-import { MusicFile } from '../index'
+import { MusicFile } from '../index.js'
 
-import { base } from './const'
+import { base } from './const.ts'
 
 const samples = [
   { file: 'mp3.mp3', description: 'MP3' },

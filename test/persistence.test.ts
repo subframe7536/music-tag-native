@@ -3,9 +3,9 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { MetaPicture, MusicFile } from '../index'
+import { MetaPicture, MusicFile } from '../index.js'
 
-import { base } from './const'
+import { base } from './const.ts'
 
 const samples = ['mp3.mp3', 'mp3-no-tags.mp3', 'flac.flac', 'ogg.opus', 'wav.wav']
 

@@ -56,16 +56,16 @@
     "@emnapi/runtime": "^1.11.3",
     "@napi-rs/cli": "~3.8.6",
     "@napi-rs/wasm-runtime": "~1.2.3",
-    "@subf/config": "^0.2.1",
-    "@tybys/wasm-util": "^0.10.1",
+    "@subf/config": "^0.3.0",
+    "@tybys/wasm-util": "^0.10.3",
     "@types/node": "^24.10.1",
     "bumpp": "^10.3.2",
     "emnapi": "^1.11.3",
-    "oxfmt": "^0.56.0",
-    "oxlint": "^1.71.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.1.0",
-    "vitest": "^4.1.9"
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   },
   "napi": {
     "binaryName": "music-tag-native",

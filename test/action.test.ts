@@ -12,9 +12,9 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { MusicFile } from '../index'
+import { MusicFile } from '../index.js'
 
-import { base } from './const'
+import { base } from './const.ts'
 
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
 

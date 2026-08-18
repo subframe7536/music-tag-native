@@ -11,28 +11,28 @@ use crate::{
 fn test_load_mp3_from_path() {
     let t = music_file_from_path("mp3.mp3");
     assert!(t.tag_type().is_some());
-    assert!(t.duration() > 0);
+    assert!(t.duration() > 0.0);
 }
 
 #[test]
 fn test_load_flac_from_path() {
     let t = music_file_from_path("flac.flac");
     assert!(t.tag_type().is_some());
-    assert!(t.duration() > 0);
+    assert!(t.duration() > 0.0);
 }
 
 #[test]
 fn test_load_ogg_from_path() {
     let t = music_file_from_path("ogg.opus");
     assert!(t.tag_type().is_some());
-    assert!(t.duration() > 0);
+    assert!(t.duration() > 0.0);
 }
 
 #[test]
 fn test_load_wav_from_path() {
     let t = music_file_from_path("wav.wav");
     assert!(t.tag_type().is_some());
-    assert!(t.duration() > 0);
+    assert!(t.duration() > 0.0);
 }
 
 #[test]

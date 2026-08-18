@@ -39,11 +39,11 @@
     "artifacts": "napi artifacts",
     "dev": "napi build --watch --platform --target wasm32-wasip1-threads",
     "build": "napi build --platform --release --strip",
-    "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
+    "build:wasm": "napi build --platform --release --strip --target wasm32-wasip1-threads",
     "build:debug": "napi build --platform",
     "typecheck": "tsc --noEmit",
-    "oxc": "oxlint --fix && oxfmt",
-    "qa": "pnpm run oxc && pnpm run typecheck",
+    "fix": "oxlint --fix && oxfmt",
+    "qa": "oxlint && oxfmt --check && pnpm run typecheck",
     "test": "vitest run",
     "test:rebuild": "pnpm run build:debug && vitest run",
     "play": "vite serve playground",
@@ -52,15 +52,15 @@
     "release": "pnpm run qa && bumpp -x \"pnpm run test:rebuild\" --all"
   },
   "devDependencies": {
-    "@emnapi/core": "^1.7.1",
-    "@emnapi/runtime": "^1.7.1",
-    "@napi-rs/cli": "^3.5.0",
-    "@napi-rs/wasm-runtime": "^1.1.0",
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
+    "@napi-rs/cli": "~3.8.6",
+    "@napi-rs/wasm-runtime": "~1.2.3",
     "@subf/config": "^0.2.1",
     "@tybys/wasm-util": "^0.10.1",
     "@types/node": "^24.10.1",
     "bumpp": "^10.3.2",
-    "emnapi": "^1.7.1",
+    "emnapi": "^1.11.3",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
     "typescript": "^6.0.3",
@@ -83,7 +83,10 @@
       "armv7-unknown-linux-gnueabihf",
       "armv7-unknown-linux-musleabihf",
       "wasm32-wasi-preview1-threads"
-    ]
+    ],
+    "wasm": {
+      "initialMemory": 1024
+    }
   },
   "engines": {
     "node": ">= 10"

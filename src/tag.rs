@@ -85,13 +85,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_year(&mut self, year: Either<u16, Null>) -> Result<()> {
+    pub fn set_year(&mut self, year: Either<f64, Null>) -> Result<()> {
+        let year = match year {
+            Either::A(year) => {
+                Some(Self::validate_integer(year, "Year", 0, u16::MAX as u64)? as u16)
+            }
+            Either::B(_) => None,
+        };
+
         self.tag_mut(|tag| match year {
-            Either::A(y) => tag.set_date(Timestamp {
-                year: y,
+            Some(year) => tag.set_date(Timestamp {
+                year,
                 ..Default::default()
             }),
-            _ => tag.remove_date(),
+            None => tag.remove_date(),
         })
     }
 
@@ -116,10 +123,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_track_number(&mut self, track_number: Either<u32, Null>) -> Result<()> {
+    pub fn set_track_number(&mut self, track_number: Either<f64, Null>) -> Result<()> {
+        let track_number = match track_number {
+            Either::A(track_number) => Some(Self::validate_integer(
+                track_number,
+                "Track number",
+                0,
+                u32::MAX as u64,
+            )?),
+            Either::B(_) => None,
+        };
+
         self.tag_mut(|tag| match track_number {
-            Either::A(t) => tag.set_track(t),
-            _ => tag.remove_track(),
+            Some(track_number) => tag.set_track(track_number),
+            None => tag.remove_track(),
         })
     }
 
@@ -130,10 +147,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_disc_number(&mut self, disc_number: Either<u32, Null>) -> Result<()> {
+    pub fn set_disc_number(&mut self, disc_number: Either<f64, Null>) -> Result<()> {
+        let disc_number = match disc_number {
+            Either::A(disc_number) => Some(Self::validate_integer(
+                disc_number,
+                "Disc number",
+                0,
+                u32::MAX as u64,
+            )?),
+            Either::B(_) => None,
+        };
+
         self.tag_mut(|tag| match disc_number {
-            Either::A(d) => tag.set_disk(d),
-            _ => tag.remove_disk(),
+            Some(disc_number) => tag.set_disk(disc_number),
+            None => tag.remove_disk(),
         })
     }
 
@@ -144,10 +171,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_track_total(&mut self, track_total: Either<u32, Null>) -> Result<()> {
+    pub fn set_track_total(&mut self, track_total: Either<f64, Null>) -> Result<()> {
+        let track_total = match track_total {
+            Either::A(track_total) => Some(Self::validate_integer(
+                track_total,
+                "Track total",
+                0,
+                u32::MAX as u64,
+            )?),
+            Either::B(_) => None,
+        };
+
         self.tag_mut(|tag| match track_total {
-            Either::A(t) => tag.set_track_total(t),
-            _ => tag.remove_track_total(),
+            Some(track_total) => tag.set_track_total(track_total),
+            None => tag.remove_track_total(),
         })
     }
 
@@ -158,10 +195,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_discs_total(&mut self, discs_total: Either<u32, Null>) -> Result<()> {
+    pub fn set_discs_total(&mut self, discs_total: Either<f64, Null>) -> Result<()> {
+        let discs_total = match discs_total {
+            Either::A(discs_total) => Some(Self::validate_integer(
+                discs_total,
+                "Disc total",
+                0,
+                u32::MAX as u64,
+            )?),
+            Either::B(_) => None,
+        };
+
         self.tag_mut(|tag| match discs_total {
-            Either::A(d) => tag.set_disk_total(d),
-            _ => tag.remove_disk_total(),
+            Some(discs_total) => tag.set_disk_total(discs_total),
+            None => tag.remove_disk_total(),
         })
     }
 
@@ -278,19 +325,20 @@ impl MusicFile {
     }
 
     #[napi(setter)]
-    pub fn set_rating(&mut self, rating: Either<u32, Null>) -> Result<()> {
+    pub fn set_rating(&mut self, rating: Either<f64, Null>) -> Result<()> {
         let star_rating = match rating {
-            Either::A(value) => Some(
-                match value {
-                    1 => Some(StarRating::One),
-                    2 => Some(StarRating::Two),
-                    3 => Some(StarRating::Three),
-                    4 => Some(StarRating::Four),
-                    5 => Some(StarRating::Five),
-                    _ => None,
-                }
-                .ok_or_else(|| Error::new(Status::InvalidArg, ERR_INVALID_RATING))?,
-            ),
+            Either::A(value) => {
+                let value = Self::validate_integer(value, "Rating", 1, 5)
+                    .map_err(|_| Error::new(Status::InvalidArg, ERR_INVALID_RATING))?;
+                Some(match value {
+                    1 => StarRating::One,
+                    2 => StarRating::Two,
+                    3 => StarRating::Three,
+                    4 => StarRating::Four,
+                    5 => StarRating::Five,
+                    _ => unreachable!("rating validation guarantees the range"),
+                })
+            }
             Either::B(_) => None,
         };
 

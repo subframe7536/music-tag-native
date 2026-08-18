@@ -59,6 +59,7 @@ impl MusicFile {
 
         let file_size_bytes = match &self.inner {
             MusicFileInner::Buffer { source_len } => *source_len as f64,
+            #[cfg(not(target_arch = "wasm32"))]
             MusicFileInner::Path(path) => std::fs::metadata(path)
                 .map(|m| m.len() as f64)
                 .unwrap_or(0.0),
@@ -86,7 +87,7 @@ impl MusicFile {
 
     /// Audio duration in milliseconds, 0 if not available
     #[napi(getter)]
-    pub fn duration(&self) -> u32 {
-        self.file.properties().duration().as_millis() as u32
+    pub fn duration(&self) -> f64 {
+        self.file.properties().duration().as_secs_f64() * 1000.0
     }
 }

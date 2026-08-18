@@ -15,7 +15,7 @@ const samples = [
 ] as const
 
 for (const sample of samples) {
-  describe.sequential(`Metadata Getters and Setters [${sample.description}]`, () => {
+  describe(`Metadata Getters and Setters [${sample.description}]`, { concurrent: false }, () => {
     let musicFile: MusicFile
     const buffer = readFileSync(join(base, sample.file))
 

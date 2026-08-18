@@ -8,6 +8,7 @@ pub fn parse_replaygain_value(value: &str) -> Option<f64> {
         .trim()
         .parse::<f64>()
         .ok()
+        .filter(|value| value.is_finite())
 }
 
 // Helper function to format ReplayGain gain value

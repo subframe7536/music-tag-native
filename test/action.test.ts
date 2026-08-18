@@ -1,4 +1,12 @@
-import { copyFileSync, readFileSync, rmSync } from 'node:fs'
+import {
+  copyFileSync,
+  linkSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -115,7 +123,7 @@ describe('MusicFile', () => {
     })
   })
 
-  describe.sequential('save', () => {
+  describe('save', { concurrent: false }, () => {
     it('should save buffer after loading from buffer', async () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
@@ -130,7 +138,7 @@ describe('MusicFile', () => {
     })
   })
 
-  describe.sequential('saveSync', () => {
+  describe('saveSync', { concurrent: false }, () => {
     it('should save buffer after loading from buffer', () => {
       const path = join(base, 'mp3.mp3')
       const buffer = readFileSync(path)
@@ -164,6 +172,21 @@ describe('MusicFile', () => {
       }
     })
 
+    it('should atomically save when the source path is passed explicitly', async () => {
+      const path = join(tmpdir(), `music-tag-native-save-explicit-source-${Date.now()}.mp3`)
+      copyFileSync(join(base, 'mp3.mp3'), path)
+
+      try {
+        const musicFile = await MusicFile.load(path)
+        musicFile.title = 'Explicit source path title'
+        await musicFile.save(path)
+
+        expect((await MusicFile.load(path)).title).toBe('Explicit source path title')
+      } finally {
+        rmSync(path, { force: true })
+      }
+    })
+
     it('should save to custom path', async () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
@@ -179,6 +202,68 @@ describe('MusicFile', () => {
         rmSync(targetPath, { force: true })
       }
     })
+
+    it.skipIf(process.platform === 'win32')(
+      'preserves symlinks while replacing their target',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-symlink-'))
+        const realPath = join(directory, 'real.mp3')
+        const linkPath = join(directory, 'alias.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), realPath)
+        symlinkSync(realPath, linkPath)
+
+        try {
+          const musicFile = await MusicFile.load(linkPath)
+          musicFile.title = 'Symlink title'
+          await musicFile.save(linkPath)
+
+          expect(lstatSync(linkPath).isSymbolicLink()).toBe(true)
+          expect((await MusicFile.load(realPath)).title).toBe('Symlink title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it('replaces a hard-link directory entry independently', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-hardlink-'))
+      const realPath = join(directory, 'real.mp3')
+      const hardLinkPath = join(directory, 'alias.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), realPath)
+      linkSync(realPath, hardLinkPath)
+
+      try {
+        const musicFile = await MusicFile.load(realPath)
+        musicFile.title = 'Hard-link title'
+        await musicFile.save(hardLinkPath)
+
+        expect((await MusicFile.load(realPath)).title).not.toBe('Hard-link title')
+        expect((await MusicFile.load(hardLinkPath)).title).toBe('Hard-link title')
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.arch === 'arm')(
+      'keeps the source unchanged when the destination parent is missing',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-save-failure-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'missing', 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        const sourceBefore = readFileSync(sourcePath)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Should not be written'
+
+          await expect(musicFile.save(targetPath)).rejects.toThrow()
+          expect(readFileSync(sourcePath)).toEqual(sourceBefore)
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
   })
 
   describe.skipIf(isWasi)('savePathSync', () => {
@@ -200,6 +285,21 @@ describe('MusicFile', () => {
       }
     })
 
+    it('should atomically save when the source path is passed explicitly', () => {
+      const path = join(tmpdir(), `music-tag-native-save-explicit-source-sync-${Date.now()}.mp3`)
+      copyFileSync(join(base, 'mp3.mp3'), path)
+
+      try {
+        const musicFile = MusicFile.loadSync(path)
+        musicFile.title = 'Explicit source path title'
+        musicFile.saveSync(path)
+
+        expect(MusicFile.loadSync(path).title).toBe('Explicit source path title')
+      } finally {
+        rmSync(path, { force: true })
+      }
+    })
+
     it('should save to custom path', () => {
       const path = join(base, 'mp3.mp3')
       const targetPath = join(tmpdir(), `music-tag-native-save-${Date.now()}.mp3`)
@@ -215,6 +315,27 @@ describe('MusicFile', () => {
         rmSync(targetPath, { force: true })
       }
     })
+
+    it.skipIf(process.arch === 'arm')(
+      'keeps the source unchanged when the destination parent is missing',
+      () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-save-failure-sync-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'missing', 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        const sourceBefore = readFileSync(sourcePath)
+
+        try {
+          const musicFile = MusicFile.loadSync(sourcePath)
+          musicFile.title = 'Should not be written'
+
+          expect(() => musicFile.saveSync(targetPath)).toThrow()
+          expect(readFileSync(sourcePath)).toEqual(sourceBefore)
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
   })
 
   describe('Integration tests', () => {

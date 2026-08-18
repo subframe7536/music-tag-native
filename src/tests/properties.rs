@@ -63,3 +63,26 @@ fn test_buffer_bitrate_falls_back_to_source_length() {
 
     assert_eq!(t.bit_rate().unwrap_or(0), 128);
 }
+
+#[test]
+fn test_duration_does_not_wrap_at_u32_maximum() {
+    let duration_ms = u64::from(u32::MAX) + 123;
+    let t = MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            FileType::Mpeg,
+            FileProperties::new(
+                Duration::from_millis(duration_ms),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            Vec::new(),
+        ),
+        MusicFileInner::Buffer { source_len: 0 },
+    );
+
+    assert_eq!(t.duration(), duration_ms as f64);
+}

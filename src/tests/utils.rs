@@ -24,6 +24,9 @@ fn test_parse_replaygain_value_invalid_formats() {
     assert_eq!(parse_replaygain_value("dB"), None);
     assert_eq!(parse_replaygain_value("+1.23"), Some(1.23)); // dB suffix is optional
     assert_eq!(parse_replaygain_value("abc dB"), None);
+    assert_eq!(parse_replaygain_value("NaN dB"), None);
+    assert_eq!(parse_replaygain_value("inf dB"), None);
+    assert_eq!(parse_replaygain_value("-inf dB"), None);
 }
 
 #[test]

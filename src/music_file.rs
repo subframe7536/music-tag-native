@@ -1,6 +1,8 @@
+use std::io::Cursor;
+
+#[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs,
-    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -14,6 +16,7 @@ use napi::{
     Either, Env, Error, Result, Status, Task,
 };
 use napi_derive::napi;
+#[cfg(not(target_arch = "wasm32"))]
 use tempfile::Builder;
 
 #[path = "helper.rs"]
@@ -23,9 +26,11 @@ mod properties;
 #[path = "tag.rs"]
 mod tag;
 
+#[cfg(target_arch = "wasm32")]
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const ERR_FILE_LOADED_FROM_BUFFER: &str = "This file was loaded from a buffer";
 
+#[cfg(not(target_arch = "wasm32"))]
 fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
     Error::new(
         Status::GenericFailure,
@@ -37,6 +42,7 @@ fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
 /// symlink directory entry intact while allowing the target file to be replaced
 /// atomically. For a new path, canonicalize its parent so the temporary file is
 /// created on the same filesystem as the eventual destination.
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_target_path(path: &Path) -> Result<PathBuf> {
     if path.exists() || fs::symlink_metadata(path).is_ok() {
         return path.canonicalize().map_err(|error| path_error(path, error));
@@ -58,6 +64,7 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
 
 /// Save a source file to a custom path by writing a temporary copy and then
 /// atomically replacing the resolved destination.
+#[cfg(not(target_arch = "wasm32"))]
 fn save_to_custom_path_impl(src_path: &str, dest_path: &str, file: &LoftyTaggedFile) -> Result<()> {
     let target = resolve_target_path(Path::new(dest_path))?;
     let parent = target.parent().ok_or_else(|| {
@@ -110,11 +117,15 @@ fn save_to_custom_path_impl(src_path: &str, dest_path: &str, file: &LoftyTaggedF
 }
 
 pub(crate) enum MusicFileInner {
-    Buffer { source_len: usize },
+    Buffer {
+        source_len: usize,
+    },
+    #[cfg(not(target_arch = "wasm32"))]
     Path(String),
 }
 
 pub enum AsyncLoadSource {
+    #[cfg(not(target_arch = "wasm32"))]
     Path(String),
     Buffer(Vec<u8>),
 }
@@ -123,6 +134,7 @@ pub struct AsyncLoad {
     source: AsyncLoadSource,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn load_from_path_impl(path: &String) -> Result<MusicFile> {
     let file = Probe::open(path)
         .map_err(|e| Error::new(Status::InvalidArg, e))?
@@ -160,6 +172,7 @@ impl Task for AsyncLoad {
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
         match &self.source {
+            #[cfg(not(target_arch = "wasm32"))]
             AsyncLoadSource::Path(path) => load_from_path_impl(path),
             AsyncLoadSource::Buffer(buffer) => load_from_buffer_impl(buffer),
         }
@@ -171,8 +184,13 @@ impl Task for AsyncLoad {
 }
 
 pub enum AsyncSaveTarget {
+    #[cfg(not(target_arch = "wasm32"))]
     InPlace(String),
-    CustomPath { src_path: String, dest_path: String },
+    #[cfg(not(target_arch = "wasm32"))]
+    CustomPath {
+        src_path: String,
+        dest_path: String,
+    },
     Buffer(Vec<u8>),
 }
 
@@ -189,6 +207,7 @@ impl Task for AsyncSave {
 
     fn compute(&mut self) -> Result<Self::Output> {
         match &mut self.target {
+            #[cfg(not(target_arch = "wasm32"))]
             AsyncSaveTarget::InPlace(path) => {
                 self.file
                     .save_to_path(path.as_str(), WriteOptions::default())
@@ -200,6 +219,7 @@ impl Task for AsyncSave {
                     })?;
                 Ok(None)
             }
+            #[cfg(not(target_arch = "wasm32"))]
             AsyncSaveTarget::CustomPath {
                 src_path,
                 dest_path,
@@ -255,11 +275,16 @@ impl MusicFile {
         let source = match source {
             Either::A(buffer) => AsyncLoadSource::Buffer(buffer.to_vec()),
             Either::B(path) => {
-                if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let _ = path;
                     return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                 }
 
-                AsyncLoadSource::Path(path)
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    AsyncLoadSource::Path(path)
+                }
             }
         };
 
@@ -281,11 +306,16 @@ impl MusicFile {
         match source {
             Either::A(buffer) => load_from_buffer_impl(&buffer),
             Either::B(path) => {
-                if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let _ = path;
                     return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                 }
 
-                load_from_path_impl(&path)
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    load_from_path_impl(&path)
+                }
             }
         }
     }
@@ -298,6 +328,7 @@ impl MusicFile {
     pub fn path(&self) -> Option<&String> {
         match &self.inner {
             MusicFileInner::Buffer { .. } => None,
+            #[cfg(not(target_arch = "wasm32"))]
             MusicFileInner::Path(path) => Some(path),
         }
     }
@@ -331,30 +362,39 @@ impl MusicFile {
                 MusicFileInner::Buffer { .. } => {
                     Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 MusicFileInner::Path(path) => Ok(AsyncSaveTarget::InPlace(path.clone())),
             },
             Some(buffer_or_path) => match buffer_or_path {
                 Either::A(buffer) => Ok(AsyncSaveTarget::Buffer(buffer.to_vec())),
                 Either::B(path) => {
-                    if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        let _ = path;
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
-                        return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
+                            return Err(Error::new(
+                                Status::InvalidArg,
+                                ERR_FILE_LOADED_FROM_BUFFER,
+                            ));
+                        }
+
+                        let current = match &self.inner {
+                            MusicFileInner::Path(current) => current.clone(),
+                            MusicFileInner::Buffer { .. } => unreachable!(
+                                "buffer-loaded files are rejected before constructing a path target"
+                            ),
+                        };
+
+                        Ok(AsyncSaveTarget::CustomPath {
+                            src_path: current,
+                            dest_path: path,
+                        })
                     }
-
-                    let current = match &self.inner {
-                        MusicFileInner::Path(current) => current.clone(),
-                        MusicFileInner::Buffer { .. } => unreachable!(
-                            "buffer-loaded files are rejected before constructing a path target"
-                        ),
-                    };
-
-                    Ok(AsyncSaveTarget::CustomPath {
-                        src_path: current,
-                        dest_path: path,
-                    })
                 }
             },
         }?;
@@ -391,6 +431,7 @@ impl MusicFile {
                 MusicFileInner::Buffer { .. } => {
                     Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 MusicFileInner::Path(path) => {
                     self.file
                         .save_to_path(path, WriteOptions::default())
@@ -409,23 +450,31 @@ impl MusicFile {
                     Ok(Either::B(Uint8Array::from(buf)))
                 }
                 Either::B(path) => {
-                    if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        let _ = path;
                         return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
                     }
 
-                    if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
-                        return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
+                            return Err(Error::new(
+                                Status::InvalidArg,
+                                ERR_FILE_LOADED_FROM_BUFFER,
+                            ));
+                        }
+
+                        let src_path = match &self.inner {
+                            MusicFileInner::Path(current) => current.as_str(),
+                            MusicFileInner::Buffer { .. } => unreachable!(
+                                "buffer-loaded files are rejected before constructing a path target"
+                            ),
+                        };
+
+                        save_to_custom_path_impl(src_path, &path, &self.file)?;
+                        Ok(Either::A(()))
                     }
-
-                    let src_path = match &self.inner {
-                        MusicFileInner::Path(current) => current.as_str(),
-                        MusicFileInner::Buffer { .. } => unreachable!(
-                            "buffer-loaded files are rejected before constructing a path target"
-                        ),
-                    };
-
-                    save_to_custom_path_impl(src_path, &path, &self.file)?;
-                    Ok(Either::A(()))
                 }
             },
         }

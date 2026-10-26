@@ -59,13 +59,13 @@
     "@subf/config": "^0.3.0",
     "@tybys/wasm-util": "^0.10.3",
     "@types/node": "^24.10.1",
-    "bumpp": "^10.3.2",
+    "bumpp": "^11.1.0",
     "emnapi": "^1.11.3",
-    "oxfmt": "^0.63.0",
-    "oxlint": "^1.78.0",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.11"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   },
   "napi": {
     "binaryName": "music-tag-native",
@@ -91,5 +91,5 @@
   "engines": {
     "node": ">= 10"
   },
-  "packageManager": "pnpm@10.33.4"
+  "packageManager": "pnpm@12.6.0"
 }

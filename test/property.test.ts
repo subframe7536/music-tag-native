@@ -9,9 +9,11 @@ import { base } from './const.ts'
 
 const samples = [
   { file: 'mp3.mp3', expectedQuality: 'HQ', description: 'MP3' },
-  { file: 'flac.flac', description: 'FLAC' },
+  // 24-bit / 44.1 kHz
+  { file: 'flac.flac', expectedQuality: 'HiRes', description: 'FLAC' },
   { file: 'ogg.opus', expectedQuality: 'HQ', description: 'OGG Opus' },
-  { file: 'wav.wav', description: 'WAV' },
+  // 32-bit / 44.1 kHz
+  { file: 'wav.wav', expectedQuality: 'HiRes', description: 'WAV' },
 ] as const
 
 describe('Audio Properties', () => {
@@ -24,7 +26,7 @@ describe('Audio Properties', () => {
       })
 
       if ('expectedQuality' in sample) {
-        it(`should be ${sample.expectedQuality} quality (lossy format)`, () => {
+        it(`should be ${sample.expectedQuality} quality`, () => {
           expect(musicFile.quality).toBe(sample.expectedQuality)
         })
       }

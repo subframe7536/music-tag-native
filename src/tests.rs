@@ -9,6 +9,7 @@ mod meta_picture;
 mod metadata;
 mod properties;
 mod tag_type;
+mod tag_write;
 mod utils;
 
 fn samples_dir() -> PathBuf {

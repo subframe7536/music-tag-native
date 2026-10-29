@@ -139,3 +139,140 @@ fn test_ogg_buffer_save_round_trip() {
     let t2 = MusicFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().as_deref(), Some("OGG Rust Title"));
 }
+
+// ── path save ───────────────────────────────────────────────────────────
+
+/// Copy a sample into a fresh temporary directory and return (dir, path)
+fn copy_sample_to_temp(name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().expect("tempdir failed");
+    let path = dir.path().join(name);
+    std::fs::copy(samples_dir().join(name), &path).expect("copy failed");
+    (dir, path)
+}
+
+fn load_path(path: &std::path::Path) -> MusicFile {
+    MusicFile::load_sync(Either::B(path.to_str().unwrap().to_string())).expect("load failed")
+}
+
+fn temp_entries(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".music-tag-native-"))
+        .collect()
+}
+
+#[test]
+fn test_in_place_save_round_trip() {
+    let (dir, path) = copy_sample_to_temp("mp3.mp3");
+    let mut t = load_path(&path);
+    t.set_title(Either::A("In place".to_string())).unwrap();
+
+    t.save_sync(None).unwrap();
+
+    assert_eq!(load_path(&path).title().as_deref(), Some("In place"));
+    assert!(temp_entries(dir.path()).is_empty());
+}
+
+#[test]
+fn test_path_getter_returns_path_as_passed() {
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let path = path.to_str().unwrap().to_string();
+    let t = MusicFile::load_sync(Either::B(path.clone())).unwrap();
+
+    assert_eq!(t.path(), Some(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_in_place_save_replaces_file_atomically() {
+    use std::os::unix::fs::MetadataExt;
+
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let inode_before = std::fs::metadata(&path).unwrap().ino();
+    let mut t = load_path(&path);
+    t.set_title(Either::A("Atomic".to_string())).unwrap();
+
+    t.save_sync(None).unwrap();
+
+    // Writing through a temporary file and renaming it gives a new inode.
+    assert_ne!(std::fs::metadata(&path).unwrap().ino(), inode_before);
+    assert_eq!(load_path(&path).title().as_deref(), Some("Atomic"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_custom_path_save_keeps_destination_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("dest.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o644)).unwrap();
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Permissions".to_string())).unwrap();
+    t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())))
+        .unwrap();
+
+    let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640);
+    assert_eq!(load_path(&dest).title().as_deref(), Some("Permissions"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_to_dangling_symlink_writes_link_target() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let link = dir.path().join("link.mp3");
+    let target = dir.path().join("target.mp3");
+    std::os::unix::fs::symlink("target.mp3", &link).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Dangling".to_string())).unwrap();
+    t.save_sync(Some(Either::B(link.to_str().unwrap().to_string())))
+        .unwrap();
+
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(load_path(&target).title().as_deref(), Some("Dangling"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_to_symlink_loop_fails() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let a = dir.path().join("a.mp3");
+    let b = dir.path().join("b.mp3");
+    std::os::unix::fs::symlink(&b, &a).unwrap();
+    std::os::unix::fs::symlink(&a, &b).unwrap();
+
+    let t = load_path(&src);
+    let error = t
+        .save_sync(Some(Either::B(a.to_str().unwrap().to_string())))
+        .err()
+        .expect("save should fail");
+
+    assert!(
+        error.reason.contains("Too many levels of symbolic links"),
+        "unexpected error: {}",
+        error.reason
+    );
+}
+
+#[test]
+fn test_buffer_loaded_file_rejects_path_save() {
+    let t = music_file_from_buffer("mp3.mp3");
+
+    let error = t.save_sync(None).err().expect("save should fail");
+    assert_eq!(error.status, napi::Status::InvalidArg);
+
+    let error = t
+        .save_sync(Some(Either::B("out.mp3".to_string())))
+        .err()
+        .expect("save should fail");
+    assert_eq!(error.status, napi::Status::InvalidArg);
+}

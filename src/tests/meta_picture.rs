@@ -159,3 +159,24 @@ fn test_to_lofty_picture_preserves_data() {
     let pic = to_lofty_picture(&meta);
     assert_eq!(pic.data(), data.as_slice());
 }
+
+#[test]
+fn test_undefined_picture_type_round_trip() {
+    let pic = make_picture(vec![1u8], PictureType::Undefined(42), MimeType::Png, None);
+
+    let meta = from_lofty_picture(&pic);
+    assert_eq!(meta.cover_type, "Unknown");
+
+    let converted = to_lofty_picture(&meta);
+    assert_eq!(converted.pic_type(), PictureType::Undefined(42));
+}
+
+#[test]
+fn test_changed_cover_type_overrides_undefined_type() {
+    let pic = make_picture(vec![1u8], PictureType::Undefined(42), MimeType::Png, None);
+
+    let mut meta = from_lofty_picture(&pic);
+    meta.cover_type = PictureType::CoverBack.as_ape_key().unwrap().to_string();
+
+    assert_eq!(to_lofty_picture(&meta).pic_type(), PictureType::CoverBack);
+}

@@ -201,8 +201,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
           architecture: ${{ matrix.settings.architecture }}
+      # pnpm v12 is a native executable, so it resolves optional deps for the host arch
+      # (arm64 on macos-latest) instead of the node arch. Force the target cpu explicitly.
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --cpu=${{ matrix.settings.architecture }}
       - name: Download artifacts
         uses: actions/download-artifact@v6
         with:

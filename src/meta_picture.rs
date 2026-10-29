@@ -11,6 +11,9 @@ pub struct MetaPicture {
     pub mime_type: Option<String>,
     pub description: Option<String>,
     pub data: Uint8Array,
+    /// Raw type byte of a picture read with a non-standard type, so it survives a
+    /// read/write round trip while `cover_type` is still "Unknown".
+    pub(crate) undefined_type: Option<u8>,
 }
 
 #[napi]
@@ -22,6 +25,7 @@ impl MetaPicture {
             mime_type: Some(mime),
             description: desc,
             data,
+            undefined_type: None,
         }
     }
 }
@@ -42,12 +46,22 @@ pub fn from_lofty_picture(pic: &Picture) -> MetaPicture {
         mime_type: pic.mime_type().map(|mime| mime.as_str().to_owned()),
         description: pic.description().map(ToOwned::to_owned),
         data: pic.data().into(),
+        undefined_type: match pic.pic_type() {
+            PictureType::Undefined(raw) => Some(raw),
+            _ => None,
+        },
     }
 }
 
 pub fn to_lofty_picture(pic: &MetaPicture) -> Picture {
-    let mut pic_builder = Picture::unchecked(pic.data.to_vec())
-        .pic_type(PictureType::from_ape_key(pic.cover_type.as_str()));
+    let pic_type = match (
+        PictureType::from_ape_key(pic.cover_type.as_str()),
+        pic.undefined_type,
+    ) {
+        (PictureType::Undefined(_), Some(raw)) => PictureType::Undefined(raw),
+        (pic_type, _) => pic_type,
+    };
+    let mut pic_builder = Picture::unchecked(pic.data.to_vec()).pic_type(pic_type);
 
     if let Some(mime_str) = pic.mime_type.as_deref() {
         pic_builder = pic_builder.mime_type(MimeType::from_str(mime_str));

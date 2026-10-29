@@ -9,12 +9,35 @@ use napi::{bindgen_prelude::Null, Either, Error, Result, Status};
 use napi_derive::napi;
 
 use crate::{
+    helper::{insert_text_checked, tag_type_name},
     meta_picture::{from_lofty_picture_slice, to_lofty_picture, MetaPicture},
     music_file::MusicFile,
     utils::{format_replaygain_gain, format_replaygain_peak, parse_replaygain_value},
 };
 
 const ERR_INVALID_RATING: &str = "Rating should be integer in [1, 5]";
+
+fn days_in_month(year: u16, month: u8) -> u8 {
+    match month {
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// Replace the year of an existing timestamp, keeping the other components.
+/// A day that no longer exists in the new year (Feb 29) is clamped.
+fn with_year(existing: Option<Timestamp>, year: u16) -> Timestamp {
+    let mut date = existing.unwrap_or_default();
+    date.year = year;
+    if let (Some(month), Some(day)) = (date.month, date.day) {
+        date.day = Some(day.min(days_in_month(year, month)));
+    }
+    date
+}
 
 #[napi]
 impl MusicFile {
@@ -24,16 +47,7 @@ impl MusicFile {
         ts_return_type = r#""AIFF" | "APE" | "ID3V1" | "ID3V2" | "ILST" | "RIFF" | "VORBIS" | null"#
     )]
     pub fn tag_type(&self) -> Option<String> {
-        self.tag(|tag| match tag.tag_type() {
-            LoftyTagType::AiffText => Some("AIFF".to_string()),
-            LoftyTagType::Ape => Some("APE".to_string()),
-            LoftyTagType::Id3v1 => Some("ID3V1".to_string()),
-            LoftyTagType::Id3v2 => Some("ID3V2".to_string()),
-            LoftyTagType::Mp4Ilst => Some("ILST".to_string()),
-            LoftyTagType::RiffInfo => Some("RIFF".to_string()),
-            LoftyTagType::VorbisComments => Some("VORBIS".to_string()),
-            _ => None,
-        })
+        self.tag(|tag| tag_type_name(tag.tag_type()).map(String::from))
     }
 
     /// Title, or `null` if not set or no available tag
@@ -44,10 +58,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_title(&mut self, title: Either<String, Null>) -> Result<()> {
-        self.tag_mut(|tag| match title {
-            Either::A(t) => tag.set_title(t),
-            _ => tag.remove_title(),
-        })
+        self.set_text_field(ItemKey::TrackTitle, "Title", title)
     }
 
     /// Artist, or `null` if not set or no available tag
@@ -58,10 +69,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_artist(&mut self, artist: Either<String, Null>) -> Result<()> {
-        self.tag_mut(|tag| match artist {
-            Either::A(a) => tag.set_artist(a),
-            _ => tag.remove_artist(),
-        })
+        self.set_text_field(ItemKey::TrackArtist, "Artist", artist)
     }
 
     /// Album, or `null` if not set or no available tag
@@ -72,10 +80,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_album(&mut self, album: Either<String, Null>) -> Result<()> {
-        self.tag_mut(|tag| match album {
-            Either::A(a) => tag.set_album(a),
-            _ => tag.remove_album(),
-        })
+        self.set_text_field(ItemKey::AlbumTitle, "Album", album)
     }
 
     /// Year, or `null` if not set or no available tag
@@ -94,11 +99,20 @@ impl MusicFile {
         };
 
         self.tag_mut(|tag| match year {
-            Some(year) => tag.set_date(Timestamp {
-                year,
-                ..Default::default()
-            }),
-            None => tag.remove_date(),
+            Some(year) => {
+                // Keep the existing month/day/time, only replace the year.
+                let date = with_year(tag.date(), year);
+                if tag.insert_text(ItemKey::RecordingDate, date.to_string()) {
+                    tag.remove_key(ItemKey::Year);
+                    Ok(())
+                } else {
+                    insert_text_checked(tag, ItemKey::Year, "Year", year.to_string())
+                }
+            }
+            None => {
+                tag.remove_date();
+                Ok(())
+            }
         })
     }
 
@@ -110,10 +124,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_genre(&mut self, genre: Either<String, Null>) -> Result<()> {
-        self.tag_mut(|tag| match genre {
-            Either::A(g) => tag.set_genre(g),
-            _ => tag.remove_genre(),
-        })
+        self.set_text_field(ItemKey::Genre, "Genre", genre)
     }
 
     /// Track number, or `null` if not set or no available tag
@@ -124,20 +135,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_track_number(&mut self, track_number: Either<f64, Null>) -> Result<()> {
-        let track_number = match track_number {
-            Either::A(track_number) => Some(Self::validate_integer(
-                track_number,
-                "Track number",
-                0,
-                u32::MAX as u64,
-            )?),
-            Either::B(_) => None,
-        };
-
-        self.tag_mut(|tag| match track_number {
-            Some(track_number) => tag.set_track(track_number),
-            None => tag.remove_track(),
-        })
+        self.set_integer_field(ItemKey::TrackNumber, "Track number", track_number)
     }
 
     /// Disc number, or `null` if not set or no available tag
@@ -148,20 +146,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_disc_number(&mut self, disc_number: Either<f64, Null>) -> Result<()> {
-        let disc_number = match disc_number {
-            Either::A(disc_number) => Some(Self::validate_integer(
-                disc_number,
-                "Disc number",
-                0,
-                u32::MAX as u64,
-            )?),
-            Either::B(_) => None,
-        };
-
-        self.tag_mut(|tag| match disc_number {
-            Some(disc_number) => tag.set_disk(disc_number),
-            None => tag.remove_disk(),
-        })
+        self.set_integer_field(ItemKey::DiscNumber, "Disc number", disc_number)
     }
 
     /// Total number of tracks in the album, or `null` if not set or no available tag
@@ -172,20 +157,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_track_total(&mut self, track_total: Either<f64, Null>) -> Result<()> {
-        let track_total = match track_total {
-            Either::A(track_total) => Some(Self::validate_integer(
-                track_total,
-                "Track total",
-                0,
-                u32::MAX as u64,
-            )?),
-            Either::B(_) => None,
-        };
-
-        self.tag_mut(|tag| match track_total {
-            Some(track_total) => tag.set_track_total(track_total),
-            None => tag.remove_track_total(),
-        })
+        self.set_integer_field(ItemKey::TrackTotal, "Track total", track_total)
     }
 
     /// Total number of discs in the album, or `null` if not set or no available tag
@@ -196,20 +168,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_discs_total(&mut self, discs_total: Either<f64, Null>) -> Result<()> {
-        let discs_total = match discs_total {
-            Either::A(discs_total) => Some(Self::validate_integer(
-                discs_total,
-                "Disc total",
-                0,
-                u32::MAX as u64,
-            )?),
-            Either::B(_) => None,
-        };
-
-        self.tag_mut(|tag| match discs_total {
-            Some(discs_total) => tag.set_disk_total(discs_total),
-            None => tag.remove_disk_total(),
-        })
+        self.set_integer_field(ItemKey::DiscTotal, "Disc total", discs_total)
     }
 
     /// Comment, or `null` if not set or no available tag
@@ -220,10 +179,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_comment(&mut self, comment: Either<String, Null>) -> Result<()> {
-        self.tag_mut(|tag| match comment {
-            Either::A(c) => tag.set_comment(c),
-            _ => tag.remove_comment(),
-        })
+        self.set_text_field(ItemKey::Comment, "Comment", comment)
     }
 
     /// Album artist, or `null` if not set or no available tag
@@ -236,7 +192,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_album_artist(&mut self, album_artist: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::AlbumArtist, album_artist)
+        self.set_text_field(ItemKey::AlbumArtist, "Album artist", album_artist)
     }
 
     /// Composer, or `null` if not set or no available tag
@@ -247,7 +203,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_composer(&mut self, composer: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::Composer, composer)
+        self.set_text_field(ItemKey::Composer, "Composer", composer)
     }
 
     /// Conductor, or `null` if not set or no available tag
@@ -258,7 +214,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_conductor(&mut self, conductor: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::Conductor, conductor)
+        self.set_text_field(ItemKey::Conductor, "Conductor", conductor)
     }
 
     /// Lyricist, or `null` if not set or no available tag
@@ -269,7 +225,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_lyricist(&mut self, lyricist: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::Lyricist, lyricist)
+        self.set_text_field(ItemKey::Lyricist, "Lyricist", lyricist)
     }
 
     /// Publisher, or `null` if not set or no available tag
@@ -280,7 +236,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_publisher(&mut self, publisher: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::Publisher, publisher)
+        self.set_text_field(ItemKey::Publisher, "Publisher", publisher)
     }
 
     /// Lyrics, or `null` if not set or no available tag
@@ -294,10 +250,21 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_lyrics(&mut self, lyrics: Either<String, Null>) -> Result<()> {
-        match self.tag(|tag| Some(tag.tag_type())) {
-            Some(LoftyTagType::Id3v2) => self.set_text_field(ItemKey::UnsyncLyrics, lyrics),
-            _ => self.set_text_field(ItemKey::Lyrics, lyrics),
-        }
+        // Pick the key from the tag that is actually written, which may be a
+        // newly created primary tag rather than the one currently read from.
+        self.tag_mut(|tag| {
+            let key = match tag.tag_type() {
+                LoftyTagType::Id3v2 => ItemKey::UnsyncLyrics,
+                _ => ItemKey::Lyrics,
+            };
+            match lyrics {
+                Either::A(lyrics) => insert_text_checked(tag, key, "Lyrics", lyrics),
+                Either::B(_) => {
+                    tag.remove_key(key);
+                    Ok(())
+                }
+            }
+        })
     }
 
     /// Copyright information, or `null` if not set or no available tag
@@ -308,7 +275,7 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_copyright(&mut self, copyright: Either<String, Null>) -> Result<()> {
-        self.set_text_field(ItemKey::CopyrightMessage, copyright)
+        self.set_text_field(ItemKey::CopyrightMessage, "Copyright", copyright)
     }
 
     /// User star ratings, or `null` if not set or no available tag
@@ -343,13 +310,16 @@ impl MusicFile {
         };
 
         self.tag_mut(move |tag| match star_rating {
-            Some(value) => {
-                tag.insert_text(
-                    ItemKey::Popularimeter,
-                    Popularimeter::custom("", value, 0).to_string(),
-                );
+            Some(value) => insert_text_checked(
+                tag,
+                ItemKey::Popularimeter,
+                "Rating",
+                Popularimeter::custom("", value, 0).to_string(),
+            ),
+            None => {
+                tag.remove_key(ItemKey::Popularimeter);
+                Ok(())
             }
-            None => tag.remove_key(ItemKey::Popularimeter),
         })
     }
 
@@ -365,6 +335,7 @@ impl MusicFile {
     pub fn set_track_replay_gain(&mut self, track_replay_gain: Either<f64, Null>) -> Result<()> {
         self.set_gain_value(
             ItemKey::ReplayGainTrackGain,
+            "Track replay gain",
             track_replay_gain,
             format_replaygain_gain,
         )
@@ -382,6 +353,7 @@ impl MusicFile {
     pub fn set_track_replay_peak(&mut self, track_replay_peak: Either<f64, Null>) -> Result<()> {
         self.set_gain_value(
             ItemKey::ReplayGainTrackPeak,
+            "Track replay peak",
             track_replay_peak,
             format_replaygain_peak,
         )
@@ -399,6 +371,7 @@ impl MusicFile {
     pub fn set_album_replay_gain(&mut self, album_replay_gain: Either<f64, Null>) -> Result<()> {
         self.set_gain_value(
             ItemKey::ReplayGainAlbumGain,
+            "Album replay gain",
             album_replay_gain,
             format_replaygain_gain,
         )
@@ -416,6 +389,7 @@ impl MusicFile {
     pub fn set_album_replay_peak(&mut self, album_replay_peak: Either<f64, Null>) -> Result<()> {
         self.set_gain_value(
             ItemKey::ReplayGainAlbumPeak,
+            "Album replay peak",
             album_replay_peak,
             format_replaygain_peak,
         )
@@ -424,6 +398,8 @@ impl MusicFile {
     /// Embedded pictures/album art list, or `null` if no picture is embedded or no available tag
     ///
     /// @note Returns all embedded pictures including album art, artist photos, etc.
+    /// @note Each access copies every picture's data. Store the result in a variable
+    /// instead of reading this property repeatedly.
     #[napi(getter)]
     pub fn pictures(&self) -> Option<Vec<MetaPicture>> {
         self.tag(|tag| from_lofty_picture_slice(tag.pictures()))
@@ -449,6 +425,8 @@ impl MusicFile {
                     tag.remove_picture(i);
                 });
             }
+
+            Ok(())
         })
     }
 }

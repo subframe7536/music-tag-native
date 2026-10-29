@@ -140,6 +140,7 @@ fn test_to_lofty_picture_no_mime() {
         mime_type: None,
         description: None,
         data: vec![1u8, 2, 3].into(),
+        undefined_type: None,
     };
     let pic = to_lofty_picture(&meta);
     assert_eq!(pic.data(), &[1u8, 2, 3]);
@@ -153,6 +154,7 @@ fn test_to_lofty_picture_preserves_data() {
         mime_type: Some("image/jpeg".to_string()),
         description: Some("Full range".to_string()),
         data: data.clone().into(),
+        undefined_type: None,
     };
     let pic = to_lofty_picture(&meta);
     assert_eq!(pic.data(), data.as_slice());

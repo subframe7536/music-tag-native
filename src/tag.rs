@@ -250,6 +250,11 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_lyrics(&mut self, lyrics: Either<String, Null>) -> Result<()> {
+        let lyrics = match lyrics {
+            Either::A(lyrics) => Some(lyrics),
+            Either::B(_) => None,
+        };
+
         // Pick the key from the tag that is actually written, which may be a
         // newly created primary tag rather than the one currently read from.
         self.tag_mut(|tag| {
@@ -257,9 +262,9 @@ impl MusicFile {
                 LoftyTagType::Id3v2 => ItemKey::UnsyncLyrics,
                 _ => ItemKey::Lyrics,
             };
-            match lyrics {
-                Either::A(lyrics) => insert_text_checked(tag, key, "Lyrics", lyrics),
-                Either::B(_) => {
+            match &lyrics {
+                Some(lyrics) => insert_text_checked(tag, key, "Lyrics", lyrics.clone()),
+                None => {
                     tag.remove_key(key);
                     Ok(())
                 }
@@ -407,15 +412,16 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_pictures(&mut self, pictures: Either<Vec<&MetaPicture>, Null>) -> Result<()> {
+        let new_pics = match pictures {
+            Either::A(pics) => pics,
+            Either::B(_) => Vec::new(),
+        };
+
         self.tag_mut(|tag| {
-            let new_pics = match pictures {
-                Either::A(pics) => pics,
-                Either::B(_) => Vec::new(),
-            };
             let new_len = new_pics.len();
             let old_len = tag.picture_count() as usize;
 
-            for (i, pic) in new_pics.into_iter().enumerate() {
+            for (i, pic) in new_pics.iter().enumerate() {
                 // lofty handles the index out of bounds here (appends when i >= picture_count)
                 tag.set_picture(i, to_lofty_picture(pic));
             }

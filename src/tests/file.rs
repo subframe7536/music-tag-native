@@ -223,6 +223,26 @@ fn test_custom_path_save_keeps_destination_permissions() {
 
 #[cfg(unix)]
 #[test]
+fn test_custom_path_save_replaces_read_only_destination() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("read-only.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Read only".to_string())).unwrap();
+    t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())))
+        .unwrap();
+
+    let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o444);
+    assert_eq!(load_path(&dest).title().as_deref(), Some("Read only"));
+}
+
+#[cfg(unix)]
+#[test]
 fn test_save_to_dangling_symlink_writes_link_target() {
     let (dir, src) = copy_sample_to_temp("mp3.mp3");
     let link = dir.path().join("link.mp3");

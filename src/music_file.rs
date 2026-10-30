@@ -133,15 +133,16 @@ fn save_to_path_atomic(src_path: &Path, dest_path: &Path, file: &LoftyTaggedFile
         )
     })?;
 
+    file.save_to_path(temporary_path, WriteOptions::default())
+        .map_err(|error| save_error(&error))?;
+
     // `fs::copy` gives the copy the source's permissions. Keep the destination's
-    // own permissions when it already exists.
+    // own permissions when it already exists. This runs after writing the tags,
+    // so a read-only destination can still be replaced.
     if let Ok(metadata) = fs::metadata(&target) {
         fs::set_permissions(temporary_path, metadata.permissions())
             .map_err(|error| save_error(&error))?;
     }
-
-    file.save_to_path(temporary_path, WriteOptions::default())
-        .map_err(|error| save_error(&error))?;
 
     temporary.persist(&target).map_err(|error| {
         Error::new(

@@ -295,6 +295,29 @@ describe('MusicFile', () => {
     )
 
     it.skipIf(process.platform === 'win32')(
+      'replaces a read-only destination and keeps its permissions',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        copyFileSync(join(base, 'mp3.mp3'), targetPath)
+        chmodSync(targetPath, 0o444)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Read-only title'
+          await musicFile.save(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o444)
+          expect((await MusicFile.load(targetPath)).title).toBe('Read-only title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it.skipIf(process.platform === 'win32')(
       'writes the target of a dangling symlink and keeps the link',
       async () => {
         const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-dangling-'))

@@ -122,3 +122,79 @@ fn test_set_year_without_existing_date() {
     assert_eq!(t.year(), Some(1999));
     assert_eq!(recording_date(&t).as_deref(), Some("1999"));
 }
+
+// ── secondary tag handling ──────────────────────────────────────────────
+
+#[test]
+fn test_supported_field_writes_to_existing_secondary_tag() {
+    let mut t = music_file_with_tag(FileType::Mpeg, Tag::new(TagType::Id3v1));
+
+    t.set_title(Either::A("Title".to_string())).unwrap();
+
+    // ID3v1 can store a title, so no ID3v2 tag is created.
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title().as_deref(), Some("Title"));
+}
+
+#[test]
+fn test_promotion_keeps_ape_lyrics_readable() {
+    let mut ape = Tag::new(TagType::Ape);
+    ape.insert_text(ItemKey::Lyrics, "hello".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, ape);
+    assert_eq!(t.lyrics().as_deref(), Some("hello"));
+
+    // APE cannot store a rating, so an ID3v2 tag is created from the APE tag.
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(t.rating(), Some(4));
+    assert_eq!(t.lyrics().as_deref(), Some("hello"));
+}
+
+#[test]
+fn test_promotion_keeps_multi_valued_items() {
+    let mut ape = Tag::new(TagType::Ape);
+    ape.push(lofty::tag::TagItem::new(
+        ItemKey::TrackArtist,
+        lofty::tag::ItemValue::Text("A".to_string()),
+    ));
+    ape.push(lofty::tag::TagItem::new(
+        ItemKey::TrackArtist,
+        lofty::tag::ItemValue::Text("B".to_string()),
+    ));
+    let mut t = music_file_with_tag(FileType::Mpeg, ape);
+
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    let primary = t.file.primary_tag().unwrap();
+    assert_eq!(primary.get_strings(ItemKey::TrackArtist).count(), 2);
+}
+
+#[test]
+fn test_failed_setter_does_not_change_secondary_only_file() {
+    // An APE file with only an ID3v1 tag: neither ID3v1 nor APE stores ratings.
+    let mut t = music_file_with_tag(FileType::Ape, Tag::new(TagType::Id3v1));
+
+    let error = t.set_rating(Either::A(3.0)).unwrap_err();
+
+    assert_eq!(error.reason, "Rating is not supported by the ID3V1 tag");
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Ape).is_none());
+}
+
+#[test]
+fn test_failed_setter_does_not_create_tag() {
+    let mut t = MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            FileType::Ape,
+            FileProperties::new(Duration::from_secs(1), None, None, None, None, None, None),
+            Vec::new(),
+        ),
+        MusicFileInner::Buffer { source_len: 0 },
+    );
+
+    assert!(t.set_rating(Either::A(3.0)).is_err());
+    assert_eq!(t.tag_type(), None);
+    assert!(t.file.tags().is_empty());
+}

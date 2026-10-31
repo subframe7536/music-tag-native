@@ -19,12 +19,34 @@ on:
       - .editorconfig
       - docs/**
   pull_request: null
+  # Manual trigger: rebuild and publish the latest tag, skipping lint and tests.
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  resolve-ref:
+    name: Resolve ref
+    runs-on: ubuntu-latest
+    outputs:
+      # Empty for push / pull_request, so actions/checkout uses the default ref.
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v6
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Resolve latest tag
+        id: resolve
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "Latest tag: $TAG"
+          echo "ref=$TAG" >> $GITHUB_OUTPUT
   lint:
     name: Lint
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -97,9 +119,13 @@ jobs:
             target: wasm32-wasip1-threads
             build: pnpm build --target wasm32-wasip1-threads
     name: stable - ${{ matrix.settings.target }} - node@22
+    needs:
+      - resolve-ref
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
       - name: setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup node
@@ -174,6 +200,7 @@ jobs:
 
   test-macOS-windows-binding:
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
+    if: github.event_name != 'workflow_dispatch'
     needs:
       - build
     strategy:
@@ -219,6 +246,7 @@ jobs:
         run: pnpm test
   test-linux-binding:
     name: Test ${{ matrix.target }} - node@${{ matrix.node }}
+    if: github.event_name != 'workflow_dispatch'
     needs:
       - build
     strategy:
@@ -291,6 +319,7 @@ jobs:
             npm run test
   test-wasi:
     name: Test WASI target
+    if: github.event_name != 'workflow_dispatch'
     needs:
       - build
     runs-on: ubuntu-latest
@@ -321,11 +350,15 @@ jobs:
     name: Publish
     runs-on: ubuntu-latest
     needs:
+      - resolve-ref
       - lint
+      - build
       # - build-freebsd
       - test-macOS-windows-binding
       - test-linux-binding
       - test-wasi
+    # Lint and test jobs are skipped on manual trigger; still run as long as nothing failed.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
     permissions:
       contents: write # required for creating releases and uploading release assets
       id-token: write # required for trusted publishing (OIDC provenance)
@@ -333,11 +366,13 @@ jobs:
       PUBLISH_FLAGS: '--provenance --access public --no-git-checks'
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
       - name: Check release
         id: check-release
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          if echo "$COMMIT_MSG" | grep -q "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+"; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || echo "$COMMIT_MSG" | grep -q "^chore: release v\?[0-9]\+\.[0-9]\+\.[0-9]\+"; then
             echo "should-publish=true" >> $GITHUB_OUTPUT
             VERSION=$(jq -r '.version' package.json)
             if [[ $VERSION == *"alpha"* ]]; then
@@ -401,14 +436,15 @@ jobs:
               return
             fi
 
-            pnpm publish "$package_dir" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run
+            pnpm publish "$package_dir" --tag "$TAG" ${{ env.PUBLISH_FLAGS }} --dry-run ${2:-}
           }
 
           for package in ./npm/*/
           do
             dry_run_if_missing "$package"
           done
-          dry_run_if_missing .
+          # Skip prepublishOnly (napi prepublish), which would otherwise publish for real.
+          dry_run_if_missing . --ignore-scripts
       - name: Publish
         if: steps.check-release.outputs.should-publish == 'true'
         run: |

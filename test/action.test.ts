@@ -384,6 +384,28 @@ describe('MusicFile', () => {
       }
     })
 
+    it.skipIf(process.platform === 'win32')(
+      'writes the target of a dangling symlink and keeps the link',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-dangling-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const linkPath = join(directory, 'link.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        symlinkSync('target.mp3', linkPath)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Dangling title'
+          await musicFile.save(linkPath)
+
+          expect(lstatSync(linkPath).isSymbolicLink()).toBe(true)
+          expect((await MusicFile.load(join(directory, 'target.mp3'))).title).toBe('Dangling title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
     it('saves to the loaded file after the working directory changes', async () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-'))
       const first = join(directory, 'first')

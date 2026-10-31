@@ -22,6 +22,9 @@ use tempfile::Builder;
 #[cfg(target_arch = "wasm32")]
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const ERR_FILE_LOADED_FROM_BUFFER: &str = "This file was loaded from a buffer";
+/// Same limit as Linux `MAXSYMLINKS`
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_SYMLINK_DEPTH: usize = 40;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
@@ -61,20 +64,18 @@ pub struct SavePaths {
     dest_display: String,
 }
 
-/// Resolve an output path to the real file when it already exists. This keeps a
-/// symlink directory entry intact while allowing the target file to be replaced
-/// atomically. For a new path, canonicalize its parent so the temporary file is
-/// created on the same filesystem as the eventual destination.
 #[cfg(not(target_arch = "wasm32"))]
-fn resolve_target_path(path: &Path) -> Result<PathBuf> {
-    if path.exists() || fs::symlink_metadata(path).is_ok() {
-        return path.canonicalize().map_err(|error| path_error(path, error));
-    }
-
-    let parent = path
-        .parent()
+fn parent_dir(path: &Path) -> &Path {
+    path.parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
+        .unwrap_or_else(|| Path::new("."))
+}
+
+/// Resolve a path that does not exist yet: canonicalize its parent so the
+/// temporary file is created on the same filesystem as the destination.
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_new_path(path: &Path) -> Result<PathBuf> {
+    let parent = parent_dir(path);
     let parent = parent
         .canonicalize()
         .map_err(|error| path_error(parent, error))?;
@@ -83,6 +84,36 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
         .ok_or_else(|| Error::new(Status::InvalidArg, "Destination path has no file name"))?;
 
     Ok(parent.join(file_name))
+}
+
+/// Resolve an output path to the real file. Symlinks are followed, so the link
+/// itself stays intact while its target is replaced atomically. A dangling
+/// symlink resolves to the (not yet existing) file it points at.
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_target_path(path: &Path) -> Result<PathBuf> {
+    let mut current = path.to_path_buf();
+
+    for _ in 0..MAX_SYMLINK_DEPTH {
+        if current.exists() {
+            return current
+                .canonicalize()
+                .map_err(|error| path_error(&current, error));
+        }
+
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let link = fs::read_link(&current).map_err(|error| path_error(&current, error))?;
+                current = if link.is_absolute() {
+                    link
+                } else {
+                    parent_dir(&current).join(link)
+                };
+            }
+            _ => return resolve_new_path(&current),
+        }
+    }
+
+    Err(path_error(path, "Too many levels of symbolic links"))
 }
 
 /// Add owner write permission only. `Permissions::set_readonly(false)` would

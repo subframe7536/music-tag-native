@@ -342,6 +342,48 @@ fn test_custom_path_save_from_read_only_source() {
     assert!(temp_entries(dir.path()).is_empty());
 }
 
+#[cfg(unix)]
+#[test]
+fn test_save_to_dangling_symlink_writes_link_target() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let link = dir.path().join("link.mp3");
+    let target = dir.path().join("target.mp3");
+    std::os::unix::fs::symlink("target.mp3", &link).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Dangling".to_string())).unwrap();
+    t.save_sync(Some(Either::B(link.to_str().unwrap().to_string())))
+        .unwrap();
+
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(load_path(&target).title().as_deref(), Some("Dangling"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_to_symlink_loop_fails() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let a = dir.path().join("a.mp3");
+    let b = dir.path().join("b.mp3");
+    std::os::unix::fs::symlink(&b, &a).unwrap();
+    std::os::unix::fs::symlink(&a, &b).unwrap();
+
+    let t = load_path(&src);
+    let error = t
+        .save_sync(Some(Either::B(a.to_str().unwrap().to_string())))
+        .err()
+        .expect("save should fail");
+
+    assert!(
+        error.reason.contains("Too many levels of symbolic links"),
+        "unexpected error: {}",
+        error.reason
+    );
+}
+
 #[test]
 fn test_buffer_loaded_file_rejects_path_save() {
     let t = music_file_from_buffer("mp3.mp3");

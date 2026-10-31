@@ -150,6 +150,30 @@ fn copy_sample_to_temp(name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
     (dir, path)
 }
 
+fn load_path(path: &std::path::Path) -> MusicFile {
+    MusicFile::load_sync(Either::B(path.to_str().unwrap().to_string())).expect("load failed")
+}
+
+fn temp_entries(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".music-tag-native-"))
+        .collect()
+}
+
+#[test]
+fn test_in_place_save_round_trip() {
+    let (dir, path) = copy_sample_to_temp("mp3.mp3");
+    let mut t = load_path(&path);
+    t.set_title(Either::A("In place".to_string())).unwrap();
+
+    t.save_sync(None).unwrap();
+
+    assert_eq!(load_path(&path).title().as_deref(), Some("In place"));
+    assert!(temp_entries(dir.path()).is_empty());
+}
+
 #[test]
 fn test_path_getter_returns_path_as_passed() {
     let (_dir, path) = copy_sample_to_temp("mp3.mp3");
@@ -157,6 +181,23 @@ fn test_path_getter_returns_path_as_passed() {
     let t = MusicFile::load_sync(Either::B(path.clone())).unwrap();
 
     assert_eq!(t.path(), Some(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_in_place_save_replaces_file_atomically() {
+    use std::os::unix::fs::MetadataExt;
+
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let inode_before = std::fs::metadata(&path).unwrap().ino();
+    let mut t = load_path(&path);
+    t.set_title(Either::A("Atomic".to_string())).unwrap();
+
+    t.save_sync(None).unwrap();
+
+    // Writing through a temporary file and renaming it gives a new inode.
+    assert_ne!(std::fs::metadata(&path).unwrap().ino(), inode_before);
+    assert_eq!(load_path(&path).title().as_deref(), Some("Atomic"));
 }
 
 #[test]

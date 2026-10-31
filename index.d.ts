@@ -43,6 +43,10 @@ export declare class MusicFile {
   /**
    * Save metadata changes to the provided buffer, existing path, or a custom path
    *
+   * Path saves write a temporary file next to the destination and then replace
+   * the destination atomically, so an interrupted save never leaves a partially
+   * written file.
+   *
    * @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
    * saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
    *

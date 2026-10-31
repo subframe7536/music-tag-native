@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -246,6 +247,28 @@ describe('MusicFile', () => {
       }
     })
 
+    it('saves in place through a temporary file without leaving it behind', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-in-place-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const inodeBefore = statSync(path).ino
+
+      try {
+        const musicFile = await MusicFile.load(path)
+        musicFile.title = 'In place title'
+        await musicFile.save()
+
+        expect((await MusicFile.load(path)).title).toBe('In place title')
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+        if (process.platform !== 'win32') {
+          // The temporary file is renamed over the original.
+          expect(statSync(path).ino).not.toBe(inodeBefore)
+        }
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
     it('saves to the loaded file after the working directory changes', async () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-'))
       const first = join(directory, 'first')
@@ -341,6 +364,27 @@ describe('MusicFile', () => {
         expect(newMusicFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
+      }
+    })
+
+    it('saves in place through a temporary file without leaving it behind', () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-in-place-sync-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const inodeBefore = statSync(path).ino
+
+      try {
+        const musicFile = MusicFile.loadSync(path)
+        musicFile.title = 'In place title'
+        musicFile.saveSync()
+
+        expect(MusicFile.loadSync(path).title).toBe('In place title')
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+        if (process.platform !== 'win32') {
+          expect(statSync(path).ino).not.toBe(inodeBefore)
+        }
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
       }
     })
 

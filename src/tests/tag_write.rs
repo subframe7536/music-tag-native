@@ -297,3 +297,51 @@ fn test_promotion_does_not_duplicate_lyrics() {
         .collect();
     assert_eq!(lyrics.len(), 1, "unexpected lyrics: {lyrics:?}");
 }
+
+// ── clearing fields ─────────────────────────────────────────────────────
+
+#[test]
+fn test_clearing_field_without_tags_does_not_create_tag() {
+    let mut t = music_file_with_tags(FileType::Mpeg, Vec::new());
+
+    t.set_title(Either::B(napi::bindgen_prelude::Null)).unwrap();
+
+    assert_eq!(t.tag_type(), None);
+    assert!(t.file.tags().is_empty());
+}
+
+/// An MP3 whose only tag is ID3v1 with a title and an artist
+fn id3v1_only_with_title_and_artist() -> MusicFile {
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_title("Song".to_string());
+    id3v1.set_artist("Artist".to_string());
+    music_file_with_tag(FileType::Mpeg, id3v1)
+}
+
+#[test]
+fn test_clearing_absent_field_on_id3v1_only_does_not_create_tag() {
+    let mut t = id3v1_only_with_title_and_artist();
+
+    t.set_rating(Either::B(napi::bindgen_prelude::Null))
+        .unwrap();
+    t.set_composer(Either::B(napi::bindgen_prelude::Null))
+        .unwrap();
+    t.set_pictures(Either::B(napi::bindgen_prelude::Null))
+        .unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title().as_deref(), Some("Song"));
+}
+
+#[test]
+fn test_clearing_existing_field_on_id3v1_only_edits_id3v1() {
+    let mut t = id3v1_only_with_title_and_artist();
+
+    t.set_title(Either::B(napi::bindgen_prelude::Null)).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title(), None);
+    assert_eq!(t.artist().as_deref(), Some("Artist"));
+}

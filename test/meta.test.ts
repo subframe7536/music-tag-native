@@ -538,4 +538,17 @@ describe('MP3 with only an ID3v1 tag', () => {
     expect(reloaded.title).toBeNull()
     expect(reloaded.artist).toBe('V1 Artist')
   })
+
+  it('does not add an ID3v2 tag when only clearing fields', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.rating = null
+    musicFile.composer = null
+    musicFile.pictures = null
+    musicFile.title = null
+
+    expect(musicFile.tagType).toBe('ID3V1')
+    const saved = musicFile.saveSync(source.slice()) as Uint8Array
+    expect(new TextDecoder().decode(saved.subarray(0, 3))).not.toBe('ID3')
+    expect(MusicFile.loadSync(saved).artist).toBe('V1 Artist')
+  })
 })

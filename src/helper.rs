@@ -50,6 +50,18 @@ fn seed_tag(dest: &mut Tag, src: &Tag) {
     }
 }
 
+/// Whether `after` only lost items or pictures compared to `before`, i.e.
+/// nothing was added or changed.
+fn only_removes(before: &Tag, after: &Tag) -> bool {
+    after
+        .items()
+        .all(|item| before.items().any(|existing| existing == item))
+        && after
+            .pictures()
+            .iter()
+            .all(|picture| before.pictures().contains(picture))
+}
+
 /// Insert a text item, failing when the tag type has no mapping for `item_key`.
 ///
 /// lofty's `Tag::insert_text` returns `false` and silently drops the value in
@@ -119,7 +131,9 @@ impl MusicFile {
     /// - An ID3v1 tag never receives writes directly: it drops pictures and
     ///   truncates text on save, so a primary tag is always created instead.
     /// - A new primary tag is inserted only after `f` succeeds on it, so a failed
-    ///   setter never changes the file's tags.
+    ///   setter never changes the file's tags. It is also not inserted when `f`
+    ///   only removed data from it, e.g. when clearing a field, since a removal
+    ///   never needs a tag that can store more.
     /// - After a successful write, `f` also runs on an existing ID3v1 tag, so it
     ///   does not keep stale values. Fields ID3v1 cannot store are skipped there.
     ///
@@ -167,10 +181,16 @@ impl MusicFile {
         if let Some(existing) = existing_type.and_then(|tag_type| self.file.tag(tag_type)) {
             seed_tag(&mut candidate, existing);
         }
+        let seed = candidate.clone();
 
         match f(&mut candidate) {
             Ok(result) => {
-                self.file.insert_tag(candidate);
+                // A write that only removes data (clearing a field) never needs a
+                // new tag: the existing tags get the removal through the ID3v1
+                // sync in `tag_mut`, so inserting would only change `tagType`.
+                if !only_removes(&seed, &candidate) {
+                    self.file.insert_tag(candidate);
+                }
                 Ok(result)
             }
             // Report the error for the tag that `tagType` still shows.

@@ -109,6 +109,19 @@ fn save_to_custom_path_impl(src_path: &str, dest_path: &str, file: &LoftyTaggedF
     Ok(())
 }
 
+/// Write the tags into a copy of the source buffer and return it
+fn save_to_buffer(file: &LoftyTaggedFile, buffer: Vec<u8>) -> Result<Vec<u8>> {
+    let mut cursor = Cursor::new(buffer);
+    file.save_to(&mut cursor, WriteOptions::default())
+        .map_err(|error| {
+            Error::new(
+                Status::GenericFailure,
+                format!("Failed saving to buffer: {}", error),
+            )
+        })?;
+    Ok(cursor.into_inner())
+}
+
 pub(crate) enum MusicFileInner {
     Buffer {
         source_len: usize,
@@ -221,13 +234,7 @@ impl Task for AsyncSave {
                 Ok(None)
             }
             AsyncSaveTarget::Buffer(buffer) => {
-                let mut cursor = Cursor::new(std::mem::take(buffer));
-
-                self.file
-                    .save_to(&mut cursor, WriteOptions::default())
-                    .map_err(|error| Error::from_reason(error.to_string()))?;
-
-                Ok(Some(cursor.into_inner()))
+                save_to_buffer(&self.file, std::mem::take(buffer)).map(Some)
             }
         }
     }
@@ -324,15 +331,6 @@ impl MusicFile {
             #[cfg(not(target_arch = "wasm32"))]
             MusicFileInner::Path(path) => Some(path),
         }
-    }
-
-    /// Save tags into a buffer, returning the new buffer contents.
-    fn save_to_new_buffer(&self, mut buf: Vec<u8>) -> Result<Vec<u8>> {
-        let mut cursor = Cursor::new(&mut buf);
-        self.file
-            .save_to(&mut cursor, WriteOptions::default())
-            .map_err(|x| Error::from_reason(x.to_string()))?;
-        Ok(buf)
     }
 
     /// Save metadata changes to the provided buffer, existing path, or a custom path
@@ -439,8 +437,8 @@ impl MusicFile {
             },
             Some(buffer_or_path) => match buffer_or_path {
                 Either::A(buffer) => {
-                    let buf = self.save_to_new_buffer(buffer.to_vec())?;
-                    Ok(Either::B(Uint8Array::from(buf)))
+                    let buffer = save_to_buffer(&self.file, buffer.to_vec())?;
+                    Ok(Either::B(Uint8Array::from(buffer)))
                 }
                 Either::B(path) => {
                     #[cfg(target_arch = "wasm32")]

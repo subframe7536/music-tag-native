@@ -200,6 +200,27 @@ fn test_in_place_save_replaces_file_atomically() {
     assert_eq!(load_path(&path).title().as_deref(), Some("Atomic"));
 }
 
+#[cfg(unix)]
+#[test]
+fn test_custom_path_save_keeps_destination_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("dest.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o644)).unwrap();
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Permissions".to_string())).unwrap();
+    t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())))
+        .unwrap();
+
+    let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640);
+    assert_eq!(load_path(&dest).title().as_deref(), Some("Permissions"));
+}
+
 #[test]
 fn test_buffer_loaded_file_rejects_path_save() {
     let t = music_file_from_buffer("mp3.mp3");

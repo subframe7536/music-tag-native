@@ -131,8 +131,18 @@ fn save_to_path_atomic(paths: &SavePaths, file: &LoftyTaggedFile) -> Result<()> 
         )
     })?;
 
+    // `fs::copy` gives the copy the source's permissions. Keep the destination's
+    // own when it already exists.
+    let final_permissions = fs::metadata(&target)
+        .map(|metadata| metadata.permissions())
+        .ok();
+
     file.save_to_path(temporary_path, WriteOptions::default())
         .map_err(|error| save_error(&error))?;
+
+    if let Some(permissions) = final_permissions {
+        fs::set_permissions(temporary_path, permissions).map_err(|error| save_error(&error))?;
+    }
 
     temporary.persist(&target).map_err(|error| {
         Error::new(

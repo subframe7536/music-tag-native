@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   copyFileSync,
   linkSync,
   lstatSync,
@@ -269,6 +270,30 @@ describe('MusicFile', () => {
       }
     })
 
+    it.skipIf(process.platform === 'win32')(
+      'keeps the permissions of an existing destination',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-permissions-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        copyFileSync(join(base, 'mp3.mp3'), targetPath)
+        chmodSync(sourcePath, 0o644)
+        chmodSync(targetPath, 0o640)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Permissions title'
+          await musicFile.save(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o640)
+          expect((await MusicFile.load(targetPath)).title).toBe('Permissions title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
     it('saves to the loaded file after the working directory changes', async () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-'))
       const first = join(directory, 'first')
@@ -387,6 +412,30 @@ describe('MusicFile', () => {
         rmSync(directory, { force: true, recursive: true })
       }
     })
+
+    it.skipIf(process.platform === 'win32')(
+      'keeps the permissions of an existing destination',
+      () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-permissions-sync-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        copyFileSync(join(base, 'mp3.mp3'), targetPath)
+        chmodSync(sourcePath, 0o644)
+        chmodSync(targetPath, 0o640)
+
+        try {
+          const musicFile = MusicFile.loadSync(sourcePath)
+          musicFile.title = 'Permissions title'
+          musicFile.saveSync(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o640)
+          expect(MusicFile.loadSync(targetPath).title).toBe('Permissions title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
 
     it('saves to the loaded file after the working directory changes', () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-sync-'))

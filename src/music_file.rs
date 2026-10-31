@@ -30,8 +30,38 @@ const MAX_SYMLINK_DEPTH: usize = 40;
 fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
     Error::new(
         Status::GenericFailure,
-        format!("Failed accessing '{}': {}", path.display(), error),
+        format!("Failed accessing '{}': {}", display_path(path), error),
     )
+}
+
+/// Format a path for an error message. `canonicalize` returns verbatim paths on
+/// Windows (`\\?\C:\...`, `\\?\UNC\server\share\...`); show them in their usual
+/// form instead.
+#[cfg(not(target_arch = "wasm32"))]
+fn display_path(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{rest}");
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return rest.to_owned();
+        }
+    }
+    text
+}
+
+/// Source and destination of a path-based save
+#[cfg(not(target_arch = "wasm32"))]
+pub struct SavePaths {
+    /// Absolute path of the loaded file
+    src: PathBuf,
+    /// Absolute destination path, equal to `src` for an in-place save
+    dest: PathBuf,
+    /// Source path as passed to `load`, for error messages
+    src_display: String,
+    /// Destination path as passed by the caller, for error messages
+    dest_display: String,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -105,24 +135,50 @@ fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
     permissions
 }
 
-/// Save tags by writing a temporary copy of `src_path` next to the destination
-/// and then atomically replacing the resolved destination. Used both for saving
-/// in place (`src_path == dest_path`) and for saving to a custom path, so an
-/// interrupted save never leaves a half-written file behind.
+/// Refuse to replace an existing destination the caller cannot write.
+///
+/// The atomic rename only needs a writable directory, so without this check a
+/// read-only file would be replaced on Unix (and fail late on Windows). Opening
+/// for writing without truncating checks the real access rights and leaves the
+/// file untouched.
 #[cfg(not(target_arch = "wasm32"))]
-fn save_to_path_atomic(src_path: &Path, dest_path: &Path, file: &LoftyTaggedFile) -> Result<()> {
+fn ensure_writable(target: &Path, dest_display: &str) -> Result<()> {
+    if !target.exists() {
+        return Ok(());
+    }
+
+    fs::OpenOptions::new()
+        .write(true)
+        .open(target)
+        .map(|_| ())
+        .map_err(|error| {
+            Error::new(
+                Status::GenericFailure,
+                format!("Destination file '{dest_display}' is not writable: {error}"),
+            )
+        })
+}
+
+/// Save tags by writing a temporary copy of the source next to the destination
+/// and then atomically replacing the resolved destination. Used both for saving
+/// in place (`src == dest`) and for saving to a custom path, so an interrupted
+/// save never leaves a half-written file behind.
+#[cfg(not(target_arch = "wasm32"))]
+fn save_to_path_atomic(paths: &SavePaths, file: &LoftyTaggedFile) -> Result<()> {
+    let dest_display = paths.dest_display.as_str();
     let save_error = |error: &dyn std::fmt::Display| {
         Error::new(
             Status::GenericFailure,
-            format!("Failed saving to file '{}': {}", dest_path.display(), error),
+            format!("Failed saving to file '{dest_display}': {error}"),
         )
     };
 
-    let target = resolve_target_path(dest_path)?;
+    let target = resolve_target_path(&paths.dest)?;
+    ensure_writable(&target, dest_display)?;
     let parent = target.parent().ok_or_else(|| {
         Error::new(
             Status::InvalidArg,
-            format!("Destination path '{}' has no parent", dest_path.display()),
+            format!("Destination path '{dest_display}' has no parent"),
         )
     })?;
 
@@ -140,23 +196,19 @@ fn save_to_path_atomic(src_path: &Path, dest_path: &Path, file: &LoftyTaggedFile
         .into_temp_path();
     let temporary_path: &Path = temporary.as_ref();
 
-    fs::copy(src_path, temporary_path).map_err(|error| {
+    fs::copy(&paths.src, temporary_path).map_err(|error| {
         Error::new(
             Status::GenericFailure,
             format!(
-                "Failed copying '{}' to '{}': {}",
-                src_path.display(),
-                dest_path.display(),
-                error
+                "Failed copying '{}' to '{dest_display}': {error}",
+                paths.src_display
             ),
         )
     })?;
 
     // `fs::copy` gives the copy the source's permissions, which may be read-only.
     // Make it writable for the tag write, then apply the final permissions: the
-    // destination's own when it already exists, otherwise the source's. This
-    // runs after writing the tags, so a read-only destination can still be
-    // replaced.
+    // destination's own when it already exists, otherwise the source's.
     let source_permissions = fs::metadata(temporary_path)
         .map_err(|error| save_error(&error))?
         .permissions();
@@ -174,7 +226,7 @@ fn save_to_path_atomic(src_path: &Path, dest_path: &Path, file: &LoftyTaggedFile
     temporary.persist(&target).map_err(|error| {
         Error::new(
             Status::GenericFailure,
-            format!("Failed replacing file '{}': {}", dest_path.display(), error),
+            format!("Failed replacing file '{dest_display}': {error}"),
         )
     })?;
 
@@ -280,10 +332,7 @@ impl Task for AsyncLoad {
 
 pub enum AsyncSaveTarget {
     #[cfg(not(target_arch = "wasm32"))]
-    Path {
-        src_path: PathBuf,
-        dest_path: PathBuf,
-    },
+    Path(SavePaths),
     Buffer(Vec<u8>),
 }
 
@@ -301,11 +350,8 @@ impl Task for AsyncSave {
     fn compute(&mut self) -> Result<Self::Output> {
         match &mut self.target {
             #[cfg(not(target_arch = "wasm32"))]
-            AsyncSaveTarget::Path {
-                src_path,
-                dest_path,
-            } => {
-                save_to_path_atomic(src_path, dest_path, &self.file)?;
+            AsyncSaveTarget::Path(paths) => {
+                save_to_path_atomic(paths, &self.file)?;
                 Ok(None)
             }
             AsyncSaveTarget::Buffer(buffer) => {
@@ -342,21 +388,29 @@ impl MusicFile {
     /// absolute here, on the calling thread, so it is relative to the working
     /// directory at call time.
     #[cfg(not(target_arch = "wasm32"))]
-    fn path_save_target(&self, dest_path: Option<String>) -> Result<(PathBuf, PathBuf)> {
-        let src_path = match &self.inner {
+    fn path_save_target(&self, dest_path: Option<String>) -> Result<SavePaths> {
+        let (src, src_display) = match &self.inner {
             MusicFileInner::Buffer { .. } => {
                 return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
             }
-            MusicFileInner::Path { resolved, .. } => resolved.clone(),
+            MusicFileInner::Path { path, resolved, .. } => (resolved.clone(), path.clone()),
         };
 
-        let dest_path = match dest_path {
-            None => src_path.clone(),
-            Some(dest_path) => std::path::absolute(&dest_path)
-                .map_err(|error| path_error(Path::new(&dest_path), error))?,
+        let (dest, dest_display) = match dest_path {
+            None => (src.clone(), src_display.clone()),
+            Some(dest_path) => (
+                std::path::absolute(&dest_path)
+                    .map_err(|error| path_error(Path::new(&dest_path), error))?,
+                dest_path,
+            ),
         };
 
-        Ok((src_path, dest_path))
+        Ok(SavePaths {
+            src,
+            dest,
+            src_display,
+            dest_display,
+        })
     }
 }
 
@@ -445,6 +499,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): Promise<void>
   save(buffer: Uint8Array): Promise<Uint8Array>"#)]
@@ -459,21 +514,9 @@ impl MusicFile {
             #[cfg(target_arch = "wasm32")]
             Some(Either::B(_)) => return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM)),
             #[cfg(not(target_arch = "wasm32"))]
-            None => {
-                let (src_path, dest_path) = self.path_save_target(None)?;
-                AsyncSaveTarget::Path {
-                    src_path,
-                    dest_path,
-                }
-            }
+            None => AsyncSaveTarget::Path(self.path_save_target(None)?),
             #[cfg(not(target_arch = "wasm32"))]
-            Some(Either::B(path)) => {
-                let (src_path, dest_path) = self.path_save_target(Some(path))?;
-                AsyncSaveTarget::Path {
-                    src_path,
-                    dest_path,
-                }
-            }
+            Some(Either::B(path)) => AsyncSaveTarget::Path(self.path_save_target(Some(path))?),
         };
 
         // Create a snapshot of MusicFile, to send to the background task.
@@ -496,6 +539,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): void
   saveSync(buffer: Uint8Array): Uint8Array"#)]
@@ -514,14 +558,12 @@ impl MusicFile {
             Some(Either::B(_)) => Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM)),
             #[cfg(not(target_arch = "wasm32"))]
             None => {
-                let (src_path, dest_path) = self.path_save_target(None)?;
-                save_to_path_atomic(&src_path, &dest_path, &self.file)?;
+                save_to_path_atomic(&self.path_save_target(None)?, &self.file)?;
                 Ok(Either::A(()))
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some(Either::B(path)) => {
-                let (src_path, dest_path) = self.path_save_target(Some(path))?;
-                save_to_path_atomic(&src_path, &dest_path, &self.file)?;
+                save_to_path_atomic(&self.path_save_target(Some(path))?, &self.file)?;
                 Ok(Either::A(()))
             }
         }

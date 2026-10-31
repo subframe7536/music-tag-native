@@ -149,7 +149,11 @@ fn test_id3v1_write_always_creates_primary_tag() {
     assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
     assert_eq!(t.title().as_deref(), Some("Title"));
     assert_eq!(t.artist().as_deref(), Some("Old artist"));
-    assert_eq!(t.file.tag(TagType::Id3v1).unwrap().title().as_deref(), None);
+    // The ID3v1 tag is kept in sync instead of keeping a stale value.
+    assert_eq!(
+        t.file.tag(TagType::Id3v1).unwrap().title().as_deref(),
+        Some("Title")
+    );
 }
 
 #[test]
@@ -211,6 +215,97 @@ fn test_failed_setter_does_not_create_tag() {
     );
 
     assert!(t.set_rating(Either::A(3.0)).is_err());
+    assert_eq!(t.tag_type(), None);
+    assert!(t.file.tags().is_empty());
+}
+
+fn music_file_with_tags(file_type: FileType, tags: Vec<Tag>) -> MusicFile {
+    MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            file_type,
+            FileProperties::new(Duration::from_secs(1), None, None, None, None, None, None),
+            tags,
+        ),
+        MusicFileInner::Buffer { source_len: 0 },
+    )
+}
+
+// ── tag selection with ID3v1 next to another tag ────────────────────────
+
+/// An MP3 with an ID3v1 tag listed before a richer APE tag
+fn id3v1_and_ape_mp3() -> MusicFile {
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_title("V1 title".to_string());
+    let mut ape = Tag::new(TagType::Ape);
+    ape.set_title("APE title".to_string());
+    ape.insert_text(ItemKey::Composer, "APE composer".to_string());
+    music_file_with_tags(FileType::Mpeg, vec![id3v1, ape])
+}
+
+#[test]
+fn test_reads_prefer_other_tag_over_id3v1() {
+    let t = id3v1_and_ape_mp3();
+
+    assert_eq!(t.tag_type().as_deref(), Some("APE"));
+    assert_eq!(t.title().as_deref(), Some("APE title"));
+    assert_eq!(t.composer().as_deref(), Some("APE composer"));
+}
+
+#[test]
+fn test_write_goes_to_other_tag_instead_of_id3v1() {
+    let mut t = id3v1_and_ape_mp3();
+
+    t.set_title(Either::A("New title".to_string())).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("APE"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title().as_deref(), Some("New title"));
+    assert_eq!(
+        t.file.tag(TagType::Id3v1).unwrap().title().as_deref(),
+        Some("New title")
+    );
+}
+
+#[test]
+fn test_promotion_seeds_from_other_tag_instead_of_id3v1() {
+    let mut t = id3v1_and_ape_mp3();
+
+    // APE cannot store a rating, so an ID3v2 tag is created.
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(t.title().as_deref(), Some("APE title"));
+    assert_eq!(t.composer().as_deref(), Some("APE composer"));
+    assert_eq!(t.rating(), Some(4));
+}
+
+// ── lyrics while seeding ────────────────────────────────────────────────
+
+#[test]
+fn test_promotion_does_not_duplicate_lyrics() {
+    let mut ape = Tag::new(TagType::Ape);
+    ape.insert_text(ItemKey::Lyrics, "lyrics".to_string());
+    ape.insert_text(ItemKey::UnsyncLyrics, "unsync lyrics".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, ape);
+
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    let id3v2 = t.file.tag(TagType::Id3v2).unwrap();
+    let lyrics: Vec<_> = id3v2
+        .items()
+        .filter(|item| matches!(item.key(), ItemKey::Lyrics | ItemKey::UnsyncLyrics))
+        .collect();
+    assert_eq!(lyrics.len(), 1, "unexpected lyrics: {lyrics:?}");
+}
+
+// ── clearing fields ─────────────────────────────────────────────────────
+
+#[test]
+fn test_clearing_field_without_tags_does_not_create_tag() {
+    let mut t = music_file_with_tags(FileType::Mpeg, Vec::new());
+
+    t.set_title(Either::B(napi::bindgen_prelude::Null)).unwrap();
+
     assert_eq!(t.tag_type(), None);
     assert!(t.file.tags().is_empty());
 }

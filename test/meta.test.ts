@@ -515,4 +515,27 @@ describe('MP3 with only an ID3v1 tag', () => {
     expect(reloaded.tagType).toBe('ID3V2')
     expect(reloaded.title).toBe(title)
   })
+
+  it('updates the ID3v1 tag too', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = 'New Title'
+
+    const saved = musicFile.saveSync(source.slice()) as Uint8Array
+    const v1Title = new TextDecoder()
+      .decode(saved.subarray(saved.length - 125, saved.length - 95))
+      .replace(/\0+$/, '')
+
+    expect(v1Title).toBe('New Title')
+    expect(MusicFile.loadSync(saved).title).toBe('New Title')
+  })
+
+  it('keeps a removed field removed after save and reload', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = null
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.title).toBeNull()
+    expect(reloaded.artist).toBe('V1 Artist')
+  })
 })

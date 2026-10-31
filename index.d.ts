@@ -53,6 +53,7 @@ export declare class MusicFile {
    * @throws If the file was loaded from a buffer and no buffer is provided.
    * @throws If the file was loaded from a buffer and wants to save to a custom path.
    * @throws If custom path is provided in WebAssembly environments
+   * @throws If the destination file already exists and is read-only
    * @throws If saving fails due to file format constraints
    */
   save(path?: string | null): Promise<void>
@@ -68,6 +69,7 @@ export declare class MusicFile {
    * @throws If the file was loaded from a buffer and no buffer is provided.
    * @throws If the file was loaded from a buffer and wants to save to a custom path.
    * @throws If custom path is provided in WebAssembly environments
+   * @throws If the destination file already exists and is read-only
    * @throws If saving fails due to file format constraints
    */
   saveSync(path?: string | null): void

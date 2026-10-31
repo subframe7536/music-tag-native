@@ -418,6 +418,11 @@ impl MusicFile {
         };
 
         self.tag_mut(|tag| {
+            // ID3v1 cannot store pictures, they would only be dropped on save.
+            if tag.tag_type() == LoftyTagType::Id3v1 {
+                return Ok(());
+            }
+
             let new_len = new_pics.len();
             let old_len = tag.picture_count() as usize;
 

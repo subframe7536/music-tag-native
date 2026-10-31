@@ -1,4 +1,7 @@
-use napi::{bindgen_prelude::Uint8Array, Either};
+use napi::{
+    bindgen_prelude::{Null, Uint8Array},
+    Either,
+};
 
 use crate::{
     meta_picture::MetaPicture,
@@ -187,6 +190,76 @@ fn test_id3v1_only_mp3_keeps_long_title_after_save() {
     assert_eq!(reloaded.title(), Some(title));
 }
 
+/// Title stored in the trailing ID3v1 tag of `buffer`, or `None` without a tag
+fn id3v1_title(buffer: &[u8]) -> Option<String> {
+    let tag = &buffer[buffer.len() - 128..];
+    if &tag[..3] != b"TAG" {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&tag[3..33])
+            .trim_end_matches('\0')
+            .to_string(),
+    )
+}
+
+fn save_to_new_buffer(t: &MusicFile, source: Vec<u8>) -> Vec<u8> {
+    let Either::B(saved_buf) = t.save_sync(Some(Either::A(source.into()))).unwrap() else {
+        panic!("save_sync did not return a buffer");
+    };
+    saved_buf.to_vec()
+}
+
+#[test]
+fn test_id3v1_only_mp3_updates_id3v1_on_write() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+
+    t.set_title(Either::A("New Title".to_string())).unwrap();
+
+    let saved = save_to_new_buffer(&t, source);
+    assert_eq!(id3v1_title(&saved).as_deref(), Some("New Title"));
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.title().as_deref(), Some("New Title"));
+}
+
+#[test]
+fn test_id3v1_only_mp3_removed_field_stays_removed() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+
+    t.set_title(Either::B(Null)).unwrap();
+
+    let saved = save_to_new_buffer(&t, source);
+    // The title was the only ID3v1 field, so the emptied tag is not written.
+    assert_eq!(id3v1_title(&saved), None);
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.title(), None);
+}
+
+#[test]
+fn test_id3v2_and_id3v1_mp3_updates_both_tags() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    t.set_title(Either::A("First".to_string())).unwrap();
+    let with_both = save_to_new_buffer(&t, source);
+
+    // Now the file has both tags, so writes go to the existing ID3v2 tag.
+    let mut t = MusicFile::load_sync(Either::A(with_both.clone().into())).unwrap();
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    t.set_title(Either::A("Second".to_string())).unwrap();
+    // A field ID3v1 cannot store still succeeds.
+    t.set_album_artist(Either::A("Album Artist".to_string()))
+        .unwrap();
+
+    let saved = save_to_new_buffer(&t, with_both);
+    assert_eq!(id3v1_title(&saved).as_deref(), Some("Second"));
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.title().as_deref(), Some("Second"));
+    assert_eq!(reloaded.album_artist().as_deref(), Some("Album Artist"));
+}
+
 // ── path save ───────────────────────────────────────────────────────────
 
 /// Copy a sample into a fresh temporary directory and return (dir, path)
@@ -268,31 +341,80 @@ fn test_custom_path_save_keeps_destination_permissions() {
     assert_eq!(load_path(&dest).title().as_deref(), Some("Permissions"));
 }
 
-#[cfg(unix)]
-#[test]
-fn test_custom_path_save_replaces_read_only_destination() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let (dir, src) = copy_sample_to_temp("mp3.mp3");
-    let dest = dir.path().join("read-only.mp3");
-    std::fs::copy(&src, &dest).unwrap();
-    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o444)).unwrap();
-
-    let mut t = load_path(&src);
-    t.set_title(Either::A("Read only".to_string())).unwrap();
-    t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())))
-        .unwrap();
-
-    let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o444);
-    assert_eq!(load_path(&dest).title().as_deref(), Some("Read only"));
-}
-
 fn set_readonly(path: &std::path::Path, readonly: bool) {
     let mut permissions = std::fs::metadata(path).unwrap().permissions();
     #[allow(clippy::permissions_set_readonly_false)]
     permissions.set_readonly(readonly);
     std::fs::set_permissions(path, permissions).unwrap();
+}
+
+/// Whether the read-only flag actually blocks writing (not the case for root)
+fn readonly_is_enforced(path: &std::path::Path) -> bool {
+    std::fs::OpenOptions::new().write(true).open(path).is_err()
+}
+
+#[test]
+fn test_save_refuses_read_only_destination() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("read-only.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    let before = std::fs::read(&dest).unwrap();
+    set_readonly(&dest, true);
+    if !readonly_is_enforced(&dest) {
+        set_readonly(&dest, false);
+        return;
+    }
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Read only".to_string())).unwrap();
+    let result = t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())));
+
+    let after = std::fs::read(&dest).unwrap();
+    let still_readonly = std::fs::metadata(&dest).unwrap().permissions().readonly();
+    set_readonly(&dest, false);
+
+    let error = result.err().expect("save should fail");
+    assert!(
+        error.reason.contains("is not writable"),
+        "unexpected error: {}",
+        error.reason
+    );
+    assert_eq!(after, before);
+    assert!(still_readonly);
+    assert!(temp_entries(dir.path()).is_empty());
+}
+
+#[test]
+fn test_in_place_save_refuses_read_only_file() {
+    let (dir, path) = copy_sample_to_temp("mp3.mp3");
+    let before = std::fs::read(&path).unwrap();
+    set_readonly(&path, true);
+    if !readonly_is_enforced(&path) {
+        set_readonly(&path, false);
+        return;
+    }
+
+    let mut t = load_path(&path);
+    t.set_title(Either::A("Read only".to_string())).unwrap();
+    let result = t.save_sync(None);
+
+    let after = std::fs::read(&path).unwrap();
+    set_readonly(&path, false);
+
+    assert!(result.is_err(), "save should fail");
+    assert_eq!(after, before);
+    assert!(temp_entries(dir.path()).is_empty());
+
+    // The error names the path as passed to `load`, not the canonical one
+    // (`\\?\C:\...` on Windows).
+    let error = result.err().unwrap();
+    let expected = format!("Destination file '{}' is not writable", path.display());
+    assert!(
+        error.reason.starts_with(&expected),
+        "unexpected error: {}",
+        error.reason
+    );
+    assert!(!error.reason.contains(r"\\?\"));
 }
 
 #[test]

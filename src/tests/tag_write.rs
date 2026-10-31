@@ -20,6 +20,13 @@ fn music_file_with_tag(file_type: FileType, tag: Tag) -> MusicFile {
     )
 }
 
+fn recording_date(file: &MusicFile) -> Option<String> {
+    file.file
+        .primary_tag()?
+        .get_string(ItemKey::RecordingDate)
+        .map(String::from)
+}
+
 // ── unsupported fields ──────────────────────────────────────────────────
 
 #[test]
@@ -77,6 +84,43 @@ fn test_lyrics_use_key_of_written_tag() {
 
     assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
     assert_eq!(t.lyrics().as_deref(), Some("Line 1\nLine 2"));
+}
+
+// ── year ────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_set_year_keeps_month_and_day() {
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.insert_text(ItemKey::RecordingDate, "2020-05-17".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, tag);
+
+    t.set_year(Either::A(2024.0)).unwrap();
+
+    assert_eq!(t.year(), Some(2024));
+    assert_eq!(recording_date(&t).as_deref(), Some("2024-05-17"));
+}
+
+#[test]
+fn test_set_year_clamps_leap_day() {
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.insert_text(ItemKey::RecordingDate, "2020-02-29".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, tag);
+
+    t.set_year(Either::A(2023.0)).unwrap();
+    assert_eq!(recording_date(&t).as_deref(), Some("2023-02-28"));
+
+    t.set_year(Either::A(2024.0)).unwrap();
+    assert_eq!(recording_date(&t).as_deref(), Some("2024-02-28"));
+}
+
+#[test]
+fn test_set_year_without_existing_date() {
+    let mut t = music_file_with_tag(FileType::Mpeg, Tag::new(TagType::Id3v2));
+
+    t.set_year(Either::A(1999.0)).unwrap();
+
+    assert_eq!(t.year(), Some(1999));
+    assert_eq!(recording_date(&t).as_deref(), Some("1999"));
 }
 
 // ── secondary tag handling ──────────────────────────────────────────────

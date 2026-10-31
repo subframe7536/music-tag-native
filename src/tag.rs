@@ -17,6 +17,28 @@ use crate::{
 
 const ERR_INVALID_RATING: &str = "Rating should be integer in [1, 5]";
 
+fn days_in_month(year: u16, month: u8) -> u8 {
+    match month {
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// Replace the year of an existing timestamp, keeping the other components.
+/// A day that no longer exists in the new year (Feb 29) is clamped.
+fn with_year(existing: Option<Timestamp>, year: u16) -> Timestamp {
+    let mut date = existing.unwrap_or_default();
+    date.year = year;
+    if let (Some(month), Some(day)) = (date.month, date.day) {
+        date.day = Some(day.min(days_in_month(year, month)));
+    }
+    date
+}
+
 #[napi]
 impl MusicFile {
     /// File's metadata tag type, or `null` if not recognized or no available tag
@@ -78,10 +100,8 @@ impl MusicFile {
 
         self.tag_mut(|tag| match year {
             Some(year) => {
-                let date = Timestamp {
-                    year,
-                    ..Default::default()
-                };
+                // Keep the existing month/day/time, only replace the year.
+                let date = with_year(tag.date(), year);
                 if tag.insert_text(ItemKey::RecordingDate, date.to_string()) {
                     tag.remove_key(ItemKey::Year);
                     Ok(())

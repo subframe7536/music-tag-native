@@ -228,6 +228,75 @@ fn set_readonly(path: &std::path::Path, readonly: bool) {
     std::fs::set_permissions(path, permissions).unwrap();
 }
 
+/// Whether the read-only flag actually blocks writing (not the case for root)
+fn readonly_is_enforced(path: &std::path::Path) -> bool {
+    std::fs::OpenOptions::new().write(true).open(path).is_err()
+}
+
+#[test]
+fn test_save_refuses_read_only_destination() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("read-only.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    let before = std::fs::read(&dest).unwrap();
+    set_readonly(&dest, true);
+    if !readonly_is_enforced(&dest) {
+        set_readonly(&dest, false);
+        return;
+    }
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Read only".to_string())).unwrap();
+    let result = t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())));
+
+    let after = std::fs::read(&dest).unwrap();
+    let still_readonly = std::fs::metadata(&dest).unwrap().permissions().readonly();
+    set_readonly(&dest, false);
+
+    let error = result.err().expect("save should fail");
+    assert!(
+        error.reason.contains("is not writable"),
+        "unexpected error: {}",
+        error.reason
+    );
+    assert_eq!(after, before);
+    assert!(still_readonly);
+    assert!(temp_entries(dir.path()).is_empty());
+}
+
+#[test]
+fn test_in_place_save_refuses_read_only_file() {
+    let (dir, path) = copy_sample_to_temp("mp3.mp3");
+    let before = std::fs::read(&path).unwrap();
+    set_readonly(&path, true);
+    if !readonly_is_enforced(&path) {
+        set_readonly(&path, false);
+        return;
+    }
+
+    let mut t = load_path(&path);
+    t.set_title(Either::A("Read only".to_string())).unwrap();
+    let result = t.save_sync(None);
+
+    let after = std::fs::read(&path).unwrap();
+    set_readonly(&path, false);
+
+    assert!(result.is_err(), "save should fail");
+    assert_eq!(after, before);
+    assert!(temp_entries(dir.path()).is_empty());
+
+    // The error names the path as passed to `load`, not the canonical one
+    // (`\\?\C:\...` on Windows).
+    let error = result.err().unwrap();
+    let expected = format!("Destination file '{}' is not writable", path.display());
+    assert!(
+        error.reason.starts_with(&expected),
+        "unexpected error: {}",
+        error.reason
+    );
+    assert!(!error.reason.contains(r"\\?\"));
+}
+
 #[test]
 fn test_custom_path_save_from_read_only_source() {
     let (dir, src) = copy_sample_to_temp("mp3.mp3");

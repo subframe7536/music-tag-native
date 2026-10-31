@@ -1,10 +1,12 @@
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -21,6 +23,16 @@ import { MusicFile } from '../index.js'
 import { base } from './const.ts'
 
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
+
+/** Whether a read-only file really rejects writes (not the case for root) */
+function readOnlyIsEnforced(path: string): boolean {
+  try {
+    closeSync(openSync(path, 'r+'))
+    return false
+  } catch {
+    return true
+  }
+}
 
 describe('MusicFile', () => {
   describe.skipIf(isWasi)('load', () => {
@@ -293,6 +305,57 @@ describe('MusicFile', () => {
         }
       },
     )
+
+    it('refuses to replace a read-only destination', async (context) => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-'))
+      const sourcePath = join(directory, 'source.mp3')
+      const targetPath = join(directory, 'target.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      copyFileSync(join(base, 'mp3.mp3'), targetPath)
+      const before = readFileSync(targetPath)
+      chmodSync(targetPath, 0o444)
+
+      try {
+        if (!readOnlyIsEnforced(targetPath)) {
+          context.skip()
+        }
+
+        const musicFile = await MusicFile.load(sourcePath)
+        musicFile.title = 'Read-only title'
+
+        await expect(musicFile.save(targetPath)).rejects.toThrow('is not writable')
+        expect(readFileSync(targetPath).equals(before)).toBe(true)
+        expect(readdirSync(directory).sort()).toEqual(['source.mp3', 'target.mp3'])
+      } finally {
+        chmodSync(targetPath, 0o644)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it('refuses to save a read-only file in place', async (context) => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-in-place-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const before = readFileSync(path)
+      chmodSync(path, 0o444)
+
+      try {
+        if (!readOnlyIsEnforced(path)) {
+          context.skip()
+        }
+
+        const musicFile = await MusicFile.load(path)
+        musicFile.title = 'Read-only title'
+
+        await expect(musicFile.save()).rejects.toThrow('is not writable')
+        expect(() => musicFile.saveSync()).toThrow('is not writable')
+        expect(readFileSync(path).equals(before)).toBe(true)
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+      } finally {
+        chmodSync(path, 0o644)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
 
     it('saves from a read-only source', async () => {
       const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-source-'))

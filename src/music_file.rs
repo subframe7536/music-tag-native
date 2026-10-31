@@ -104,6 +104,30 @@ fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
     permissions
 }
 
+/// Refuse to replace an existing destination the caller cannot write.
+///
+/// The atomic rename only needs a writable directory, so without this check a
+/// read-only file would be replaced on Unix (and fail late on Windows). Opening
+/// for writing without truncating checks the real access rights and leaves the
+/// file untouched.
+#[cfg(not(target_arch = "wasm32"))]
+fn ensure_writable(target: &Path, dest_display: &str) -> Result<()> {
+    if !target.exists() {
+        return Ok(());
+    }
+
+    fs::OpenOptions::new()
+        .write(true)
+        .open(target)
+        .map(|_| ())
+        .map_err(|error| {
+            Error::new(
+                Status::GenericFailure,
+                format!("Destination file '{dest_display}' is not writable: {error}"),
+            )
+        })
+}
+
 /// Save tags by writing a temporary copy of the source next to the destination
 /// and then atomically replacing the resolved destination. Used both for saving
 /// in place (`src == dest`) and for saving to a custom path, so an interrupted
@@ -119,6 +143,7 @@ fn save_to_path_atomic(paths: &SavePaths, file: &LoftyTaggedFile) -> Result<()> 
     };
 
     let target = resolve_target_path(&paths.dest)?;
+    ensure_writable(&target, dest_display)?;
     let parent = target.parent().ok_or_else(|| {
         Error::new(
             Status::InvalidArg,
@@ -443,6 +468,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): Promise<void>
   save(buffer: Uint8Array): Promise<Uint8Array>"#)]
@@ -482,6 +508,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): void
   saveSync(buffer: Uint8Array): Uint8Array"#)]

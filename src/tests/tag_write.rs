@@ -175,6 +175,66 @@ fn test_failed_setter_does_not_create_tag() {
     assert!(t.file.tags().is_empty());
 }
 
+fn music_file_with_tags(file_type: FileType, tags: Vec<Tag>) -> MusicFile {
+    MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            file_type,
+            FileProperties::new(Duration::from_secs(1), None, None, None, None, None, None),
+            tags,
+        ),
+        MusicFileInner::Buffer { source_len: 0 },
+    )
+}
+
+// ── tag selection with ID3v1 next to another tag ────────────────────────
+
+/// An MP3 with an ID3v1 tag listed before a richer APE tag
+fn id3v1_and_ape_mp3() -> MusicFile {
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_title("V1 title".to_string());
+    let mut ape = Tag::new(TagType::Ape);
+    ape.set_title("APE title".to_string());
+    ape.insert_text(ItemKey::Composer, "APE composer".to_string());
+    music_file_with_tags(FileType::Mpeg, vec![id3v1, ape])
+}
+
+#[test]
+fn test_reads_prefer_other_tag_over_id3v1() {
+    let t = id3v1_and_ape_mp3();
+
+    assert_eq!(t.tag_type().as_deref(), Some("APE"));
+    assert_eq!(t.title().as_deref(), Some("APE title"));
+    assert_eq!(t.composer().as_deref(), Some("APE composer"));
+}
+
+#[test]
+fn test_write_goes_to_other_tag_instead_of_id3v1() {
+    let mut t = id3v1_and_ape_mp3();
+
+    t.set_title(Either::A("New title".to_string())).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("APE"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title().as_deref(), Some("New title"));
+    assert_eq!(
+        t.file.tag(TagType::Id3v1).unwrap().title().as_deref(),
+        Some("New title")
+    );
+}
+
+#[test]
+fn test_promotion_seeds_from_other_tag_instead_of_id3v1() {
+    let mut t = id3v1_and_ape_mp3();
+
+    // APE cannot store a rating, so an ID3v2 tag is created.
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(t.title().as_deref(), Some("APE title"));
+    assert_eq!(t.composer().as_deref(), Some("APE composer"));
+    assert_eq!(t.rating(), Some(4));
+}
+
 // ── lyrics while seeding ────────────────────────────────────────────────
 
 #[test]

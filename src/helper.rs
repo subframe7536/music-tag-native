@@ -1,5 +1,5 @@
 use lofty::{
-    file::{AudioFile, TaggedFileExt},
+    file::TaggedFileExt,
     tag::{ItemKey, Tag, TagItem, TagType},
 };
 use napi::{bindgen_prelude::Null, Either, Error, Result, Status};
@@ -85,27 +85,37 @@ impl MusicFile {
         Ok(value as u32)
     }
 
-    /// Execute a function on the primary or first available tag
+    /// Type of the tag that reads come from: the primary tag, otherwise the first
+    /// tag that is not ID3v1, otherwise the ID3v1 tag.
+    ///
+    /// ID3v1 comes last because it holds the least data (30-byte fields, no
+    /// pictures), so an APE tag next to it on an MP3 is the better source.
+    fn read_tag_type(&self) -> Option<TagType> {
+        let primary_type = self.file.primary_tag_type();
+        let tags = self.file.tags();
+        tags.iter()
+            .find(|tag| tag.tag_type() == primary_type)
+            .or_else(|| tags.iter().find(|tag| tag.tag_type() != TagType::Id3v1))
+            .or_else(|| tags.first())
+            .map(Tag::tag_type)
+    }
+
+    /// Execute a function on the tag picked by [`Self::read_tag_type`]
     pub(crate) fn tag<R, F>(&self, f: F) -> Option<R>
     where
         F: FnOnce(&Tag) -> Option<R>,
     {
-        if !self.file.contains_tag() {
-            return None;
-        }
-
-        self.file
-            .primary_tag()
-            .or_else(|| self.file.first_tag())
+        self.read_tag_type()
+            .and_then(|tag_type| self.file.tag(tag_type))
             .and_then(f)
     }
 
     /// Execute a mutable function on the tag that should receive a write.
     ///
     /// - If the primary tag exists, `f` runs on it.
-    /// - If only another tag exists (e.g. APE on an MP3), `f` runs on that tag
-    ///   first. Only when that tag cannot store the field is a primary tag
-    ///   created, seeded with the existing tag's items and pictures.
+    /// - Otherwise `f` runs on the tag that reads come from (e.g. APE on an MP3).
+    ///   Only when that tag cannot store the field is a primary tag created,
+    ///   seeded with that tag's items and pictures.
     /// - An ID3v1 tag never receives writes directly: it drops pictures and
     ///   truncates text on save, so a primary tag is always created instead.
     /// - A new primary tag is inserted only after `f` succeeds on it, so a failed
@@ -141,16 +151,20 @@ impl MusicFile {
             return f(tag);
         }
 
-        let existing_error = match self.file.first_tag_mut() {
-            Some(tag) if tag.tag_type() != TagType::Id3v1 => match f(tag) {
-                Ok(result) => return Ok(result),
-                Err(error) => Some(error),
-            },
+        let existing_type = self.read_tag_type();
+        let existing_error = match existing_type {
+            Some(tag_type) if tag_type != TagType::Id3v1 => {
+                match self.file.tag_mut(tag_type).map(f) {
+                    Some(Ok(result)) => return Ok(result),
+                    Some(Err(error)) => Some(error),
+                    None => None,
+                }
+            }
             _ => None,
         };
 
         let mut candidate = Tag::new(primary_type);
-        if let Some(existing) = self.file.first_tag() {
+        if let Some(existing) = existing_type.and_then(|tag_type| self.file.tag(tag_type)) {
             seed_tag(&mut candidate, existing);
         }
 

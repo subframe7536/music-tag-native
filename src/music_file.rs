@@ -264,7 +264,12 @@ pub(crate) enum MusicFileInner {
 
 pub enum AsyncLoadSource {
     #[cfg(not(target_arch = "wasm32"))]
-    Path(String),
+    Path {
+        /// Path as passed by the caller, returned by `MusicFile.path`
+        path: String,
+        /// `path` made absolute on the calling thread
+        absolute: PathBuf,
+    },
     Buffer(Vec<u8>),
 }
 
@@ -272,16 +277,28 @@ pub struct AsyncLoad {
     source: AsyncLoadSource,
 }
 
+/// Make a load path absolute against the current working directory.
+///
+/// Called on the JS thread, before any work is queued, so a later
+/// `process.chdir()` cannot change which file an async load reads. If the path
+/// cannot be made absolute (e.g. it is empty), it is kept as-is and opening it
+/// reports the error.
 #[cfg(not(target_arch = "wasm32"))]
-fn load_from_path_impl(path: &str) -> Result<MusicFile> {
-    let file = Probe::open(path)
+fn absolute_load_path(path: &str) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| PathBuf::from(path))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn load_from_path_impl(path: &str, absolute: &Path) -> Result<MusicFile> {
+    let file = Probe::open(absolute)
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .guess_file_type()
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .read()
         .map_err(|e| Error::new(Status::InvalidArg, e))?;
 
-    let resolved = fs::canonicalize(path).map_err(|error| path_error(Path::new(path), error))?;
+    let resolved =
+        fs::canonicalize(absolute).map_err(|error| path_error(Path::new(path), error))?;
     let file_size = fs::metadata(&resolved)
         .map_err(|error| path_error(&resolved, error))?
         .len();
@@ -320,7 +337,7 @@ impl Task for AsyncLoad {
     fn compute(&mut self) -> napi::Result<Self::Output> {
         match &self.source {
             #[cfg(not(target_arch = "wasm32"))]
-            AsyncLoadSource::Path(path) => load_from_path_impl(path),
+            AsyncLoadSource::Path { path, absolute } => load_from_path_impl(path, absolute),
             AsyncLoadSource::Buffer(buffer) => load_from_buffer_impl(buffer),
         }
     }
@@ -437,7 +454,8 @@ impl MusicFile {
 
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    AsyncLoadSource::Path(path)
+                    let absolute = absolute_load_path(&path);
+                    AsyncLoadSource::Path { path, absolute }
                 }
             }
         };
@@ -468,7 +486,7 @@ impl MusicFile {
 
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    load_from_path_impl(&path)
+                    load_from_path_impl(&path, &absolute_load_path(&path))
                 }
             }
         }

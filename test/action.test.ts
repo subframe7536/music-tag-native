@@ -75,6 +75,35 @@ describe('MusicFile', () => {
         await MusicFile.load(__filename) // Try to load the test file itself
       }).rejects.toThrow()
     })
+
+    it('reads the file relative to the working directory at call time', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-load-chdir-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      // Same name, different files: only the first one has a title.
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      copyFileSync(join(base, 'mp3-no-tags.mp3'), join(second, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        // The worker thread may run after the directory change below. Repeat to
+        // make a regression likely to show up.
+        for (let i = 0; i < 20; i++) {
+          process.chdir(first)
+          const pending = MusicFile.load('song.mp3')
+          process.chdir(second)
+          const musicFile = await pending
+
+          expect(musicFile.title).toBe('Saved Title')
+          expect(musicFile.path()).toBe('song.mp3')
+        }
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
   })
 
   describe.skipIf(isWasi)('loadSync', () => {

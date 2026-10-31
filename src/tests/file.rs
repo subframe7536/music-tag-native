@@ -221,6 +221,58 @@ fn test_custom_path_save_keeps_destination_permissions() {
     assert_eq!(load_path(&dest).title().as_deref(), Some("Permissions"));
 }
 
+fn set_readonly(path: &std::path::Path, readonly: bool) {
+    let mut permissions = std::fs::metadata(path).unwrap().permissions();
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(readonly);
+    std::fs::set_permissions(path, permissions).unwrap();
+}
+
+#[test]
+fn test_custom_path_save_from_read_only_source() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let existing = dir.path().join("existing.mp3");
+    let new = dir.path().join("new.mp3");
+    std::fs::copy(&src, &existing).unwrap();
+    set_readonly(&src, true);
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Read-only source".to_string()))
+        .unwrap();
+    let existing_result = t.save_sync(Some(Either::B(existing.to_str().unwrap().to_string())));
+    let new_result = t.save_sync(Some(Either::B(new.to_str().unwrap().to_string())));
+
+    // Restore before asserting, so the temporary directory can be deleted on Windows.
+    let new_readonly = std::fs::metadata(&new).map(|m| m.permissions().readonly());
+    set_readonly(&src, false);
+    if new.exists() {
+        set_readonly(&new, false);
+    }
+
+    assert!(
+        existing_result.is_ok(),
+        "save to existing destination failed"
+    );
+    assert!(new_result.is_ok(), "save to new destination failed");
+    assert_eq!(
+        load_path(&existing).title().as_deref(),
+        Some("Read-only source")
+    );
+    assert_eq!(load_path(&new).title().as_deref(), Some("Read-only source"));
+    // The existing destination keeps its permissions, a new one gets the source's.
+    // On Windows, tempfile's `persist` resets file attributes, so only Unix keeps
+    // the read-only flag on the new file.
+    assert!(!std::fs::metadata(&existing)
+        .unwrap()
+        .permissions()
+        .readonly());
+    #[cfg(unix)]
+    assert!(new_readonly.unwrap());
+    #[cfg(not(unix))]
+    let _ = new_readonly;
+    assert!(temp_entries(dir.path()).is_empty());
+}
+
 #[test]
 fn test_buffer_loaded_file_rejects_path_save() {
     let t = music_file_from_buffer("mp3.mp3");

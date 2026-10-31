@@ -85,6 +85,25 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
     Ok(parent.join(file_name))
 }
 
+/// Add owner write permission only. `Permissions::set_readonly(false)` would
+/// make the file world-writable on Unix.
+#[cfg(not(target_arch = "wasm32"))]
+fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+
+    #[cfg(not(unix))]
+    {
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+    }
+
+    permissions
+}
+
 /// Save tags by writing a temporary copy of the source next to the destination
 /// and then atomically replacing the resolved destination. Used both for saving
 /// in place (`src == dest`) and for saving to a custom path, so an interrupted
@@ -131,18 +150,22 @@ fn save_to_path_atomic(paths: &SavePaths, file: &LoftyTaggedFile) -> Result<()> 
         )
     })?;
 
-    // `fs::copy` gives the copy the source's permissions. Keep the destination's
-    // own when it already exists.
+    // `fs::copy` gives the copy the source's permissions, which may be read-only.
+    // Make it writable for the tag write, then apply the final permissions: the
+    // destination's own when it already exists, otherwise the source's.
+    let source_permissions = fs::metadata(temporary_path)
+        .map_err(|error| save_error(&error))?
+        .permissions();
     let final_permissions = fs::metadata(&target)
         .map(|metadata| metadata.permissions())
-        .ok();
+        .unwrap_or_else(|_| source_permissions.clone());
+    fs::set_permissions(temporary_path, owner_writable(source_permissions))
+        .map_err(|error| save_error(&error))?;
 
     file.save_to_path(temporary_path, WriteOptions::default())
         .map_err(|error| save_error(&error))?;
 
-    if let Some(permissions) = final_permissions {
-        fs::set_permissions(temporary_path, permissions).map_err(|error| save_error(&error))?;
-    }
+    fs::set_permissions(temporary_path, final_permissions).map_err(|error| save_error(&error))?;
 
     temporary.persist(&target).map_err(|error| {
         Error::new(

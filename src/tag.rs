@@ -230,12 +230,26 @@ impl MusicFile {
 
     #[napi(setter)]
     pub fn set_lyrics(&mut self, lyrics: Either<String, Null>) -> Result<()> {
-        match self.tag(|tag| Some(tag.tag_type())) {
-            Some(LoftyTagType::Id3v2) => {
-                self.set_text_field(ItemKey::UnsyncLyrics, "Lyrics", lyrics)
+        let lyrics = match lyrics {
+            Either::A(lyrics) => Some(lyrics),
+            Either::B(_) => None,
+        };
+
+        // Pick the key from the tag that is actually written, which may be a
+        // newly created primary tag rather than the one currently read from.
+        self.tag_mut(|tag| {
+            let key = match tag.tag_type() {
+                LoftyTagType::Id3v2 => ItemKey::UnsyncLyrics,
+                _ => ItemKey::Lyrics,
+            };
+            match &lyrics {
+                Some(lyrics) => insert_text_checked(tag, key, "Lyrics", lyrics.clone()),
+                None => {
+                    tag.remove_key(key);
+                    Ok(())
+                }
             }
-            _ => self.set_text_field(ItemKey::Lyrics, "Lyrics", lyrics),
-        }
+        })
     }
 
     /// Copyright information, or `null` if not set or no available tag

@@ -1,6 +1,6 @@
 use lofty::{
     file::{AudioFile, TaggedFileExt},
-    tag::{ItemKey, Tag, TagType},
+    tag::{ItemKey, Tag, TagItem, TagType},
 };
 use napi::{bindgen_prelude::Null, Either, Error, Result, Status};
 
@@ -17,6 +17,36 @@ pub(crate) fn tag_type_name(tag_type: TagType) -> Option<&'static str> {
         TagType::RiffInfo => Some("RIFF"),
         TagType::VorbisComments => Some("VORBIS"),
         _ => None,
+    }
+}
+
+/// Copy items and pictures from `src` into a new tag of another type.
+///
+/// Items without a mapping in the destination type are skipped. Lyrics are
+/// stored under different keys depending on the tag type (ID3v2 only supports
+/// `UnsyncLyrics`), so they are moved to the other key when needed. When `src`
+/// already has lyrics under both keys, only the ones under the supported key
+/// are copied, so the new tag does not end up with two copies.
+fn seed_tag(dest: &mut Tag, src: &Tag) {
+    for item in src.items() {
+        // `push` keeps multi-valued items, unlike `insert` which replaces.
+        if dest.push(item.clone()) {
+            continue;
+        }
+
+        let alternate = match item.key() {
+            ItemKey::Lyrics => ItemKey::UnsyncLyrics,
+            ItemKey::UnsyncLyrics => ItemKey::Lyrics,
+            _ => continue,
+        };
+        if src.get(alternate).is_some() {
+            continue;
+        }
+        dest.push(TagItem::new(alternate, item.value().clone()));
+    }
+
+    for picture in src.pictures() {
+        dest.push_picture(picture.clone());
     }
 }
 
@@ -70,27 +100,46 @@ impl MusicFile {
             .and_then(f)
     }
 
-    /// Execute a mutable function on the primary or first available tag.
+    /// Execute a mutable function on the tag that should receive a write.
     ///
-    /// Without any tag, `f` runs on a new primary tag that is inserted only after
-    /// `f` succeeds, so a failed setter never changes the file's tags.
+    /// - If the primary tag exists, `f` runs on it.
+    /// - If only another tag exists (e.g. APE on an MP3), `f` runs on that tag
+    ///   first. Only when that tag cannot store the field is a primary tag
+    ///   created, seeded with the existing tag's items and pictures.
+    /// - A new primary tag is inserted only after `f` succeeds on it, so a failed
+    ///   setter never changes the file's tags.
     ///
-    /// `f` must leave the tag unchanged when it returns an error.
+    /// `f` may run twice and must leave the tag unchanged when it returns an error.
     pub(crate) fn tag_mut<R, F>(&mut self, f: F) -> Result<R>
     where
         F: Fn(&mut Tag) -> Result<R>,
     {
-        if let Some(tag) = self.file.primary_tag_mut() {
-            return f(tag);
-        }
-        if let Some(tag) = self.file.first_tag_mut() {
+        let primary_type = self.file.primary_tag_type();
+        if let Some(tag) = self.file.tag_mut(primary_type) {
             return f(tag);
         }
 
-        let mut candidate = Tag::new(self.file.primary_tag_type());
-        let result = f(&mut candidate)?;
-        self.file.insert_tag(candidate);
-        Ok(result)
+        let existing_error = match self.file.first_tag_mut() {
+            Some(tag) => match f(tag) {
+                Ok(result) => return Ok(result),
+                Err(error) => Some(error),
+            },
+            None => None,
+        };
+
+        let mut candidate = Tag::new(primary_type);
+        if let Some(existing) = self.file.first_tag() {
+            seed_tag(&mut candidate, existing);
+        }
+
+        match f(&mut candidate) {
+            Ok(result) => {
+                self.file.insert_tag(candidate);
+                Ok(result)
+            }
+            // Report the error for the tag that `tagType` still shows.
+            Err(error) => Err(existing_error.unwrap_or(error)),
+        }
     }
 
     pub(crate) fn set_text_field(

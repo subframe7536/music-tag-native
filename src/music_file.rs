@@ -159,6 +159,8 @@ pub(crate) enum MusicFileInner {
         /// Absolute, canonical path resolved at load time. Saves use this, so a
         /// later `process.chdir()` cannot redirect them.
         resolved: PathBuf,
+        /// File size at load time, used to estimate the bit rate
+        file_size: u64,
     },
 }
 
@@ -182,12 +184,16 @@ fn load_from_path_impl(path: &str) -> Result<MusicFile> {
         .map_err(|e| Error::new(Status::InvalidArg, e))?;
 
     let resolved = fs::canonicalize(path).map_err(|error| path_error(Path::new(path), error))?;
+    let file_size = fs::metadata(&resolved)
+        .map_err(|error| path_error(&resolved, error))?
+        .len();
 
     Ok(MusicFile {
         file,
         inner: MusicFileInner::Path {
             path: path.to_owned(),
             resolved,
+            file_size,
         },
     })
 }

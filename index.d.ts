@@ -91,6 +91,7 @@ export declare class MusicFile {
    *
    * @note If the audio properties don't provide a bitrate, this method calculates
    * an approximate bitrate based on file size and duration, including metadata.
+   * The file size is the one measured when the file was loaded.
    * The calculated bitrate is constrained between 8 and 10,000 kbps.
    */
   get bitRate(): number | null

@@ -151,3 +151,23 @@ fn test_quality_mp4_without_bit_depth_is_lossy() {
     let t = music_file_with_format(FileType::Mp4, Some(44_100), None);
     assert_eq!(t.quality(), "HQ");
 }
+
+// ── bit rate from file size ─────────────────────────────────────────────
+
+#[test]
+fn test_path_bitrate_uses_file_size_at_load_time() {
+    let t = MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            FileType::Mpeg,
+            FileProperties::new(Duration::from_secs(10), None, None, None, None, None, None),
+            Vec::new(),
+        ),
+        MusicFileInner::Path {
+            path: "missing.mp3".to_string(),
+            resolved: "/does/not/exist/missing.mp3".into(),
+            file_size: 160_000,
+        },
+    );
+
+    assert_eq!(t.bit_rate(), Some(128));
+}

@@ -394,7 +394,7 @@ impl MusicFile {
         let file = LoftyTaggedFile::new(
             self.file.file_type(),
             self.file.properties().clone(),
-            self.file.tags().to_owned().to_vec(),
+            self.file.tags().to_vec(),
         );
 
         Ok(AsyncTask::new(AsyncSave { target, file }))

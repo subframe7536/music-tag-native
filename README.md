@@ -148,7 +148,7 @@ All properties can be read and written. Set to `null` to remove a tag.
 
 #### Audio Properties (Read-Only)
 
-- `quality: 'HQ' | 'SQ' | 'HiRes'` - Audio quality classification
+- `quality: 'HQ' | 'SQ' | 'HiRes'` - Audio quality classification. Lossy formats are `HQ`. Lossless formats (FLAC, APE, AIFF, WAV, WavPack, and ALAC/FLAC in MP4) are `HiRes` above 16 bits or above 48 kHz, otherwise `SQ`. For example, a 24-bit / 44.1 kHz FLAC is `HiRes`.
 - `bitDepth: number | null` - Bit depth
 - `bitRate: number | null` - Audio bitrate in kbps
 - `sampleRate: number | null` - Sample rate in Hz

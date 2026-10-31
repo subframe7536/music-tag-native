@@ -72,9 +72,12 @@ export declare class MusicFile {
    * Audio quality classification ("HQ", "SQ", or "HiRes")
    *
    * Quality is determined based on file format, sample rate, and bit depth:
-   * - HQ: Lossy formats (MP3, AAC, etc.)
-   * - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
-   * - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
+   * - HQ: Lossy formats (MP3, AAC, Opus, etc.)
+   * - SQ: Lossless formats up to CD quality (16-bit, up to 48kHz)
+   * - HiRes: Lossless formats with more than 16-bit depth or more than 48kHz sample rate
+   *
+   * MP4 files count as lossless when they carry a bit depth, which lofty only
+   * reports for ALAC and FLAC streams.
    */
   get quality(): "HQ" | "SQ" | "HiRes"
   /**

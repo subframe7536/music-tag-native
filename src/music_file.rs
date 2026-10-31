@@ -19,13 +19,6 @@ use napi_derive::napi;
 #[cfg(not(target_arch = "wasm32"))]
 use tempfile::Builder;
 
-#[path = "helper.rs"]
-mod helper;
-#[path = "properties.rs"]
-mod properties;
-#[path = "tag.rs"]
-mod tag;
-
 #[cfg(target_arch = "wasm32")]
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const ERR_FILE_LOADED_FROM_BUFFER: &str = "This file was loaded from a buffer";
@@ -249,8 +242,8 @@ impl Task for AsyncSave {
 
 #[napi]
 pub struct MusicFile {
-    file: LoftyTaggedFile,
-    inner: MusicFileInner,
+    pub(crate) file: LoftyTaggedFile,
+    pub(crate) inner: MusicFileInner,
 }
 
 #[cfg(test)]

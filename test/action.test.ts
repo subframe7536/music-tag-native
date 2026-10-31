@@ -1,10 +1,16 @@
 import {
+  chmodSync,
+  closeSync,
   copyFileSync,
   linkSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
+  openSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,6 +23,16 @@ import { MusicFile } from '../index.js'
 import { base } from './const.ts'
 
 const isWasi = process.env.NAPI_RS_FORCE_WASI === '1'
+
+/** Whether a read-only file really rejects writes (not the case for root) */
+function readOnlyIsEnforced(path: string): boolean {
+  try {
+    closeSync(openSync(path, 'r+'))
+    return false
+  } catch {
+    return true
+  }
+}
 
 describe('MusicFile', () => {
   describe.skipIf(isWasi)('load', () => {
@@ -58,6 +74,35 @@ describe('MusicFile', () => {
       await expect(async () => {
         await MusicFile.load(__filename) // Try to load the test file itself
       }).rejects.toThrow()
+    })
+
+    it('reads the file relative to the working directory at call time', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-load-chdir-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      // Same name, different files: only the first one has a title.
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      copyFileSync(join(base, 'mp3-no-tags.mp3'), join(second, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        // The worker thread may run after the directory change below. Repeat to
+        // make a regression likely to show up.
+        for (let i = 0; i < 20; i++) {
+          process.chdir(first)
+          const pending = MusicFile.load('song.mp3')
+          process.chdir(second)
+          const musicFile = await pending
+
+          expect(musicFile.title).toBe('Saved Title')
+          expect(musicFile.path()).toBe('song.mp3')
+        }
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
+      }
     })
   })
 
@@ -244,6 +289,178 @@ describe('MusicFile', () => {
       }
     })
 
+    it('saves in place through a temporary file without leaving it behind', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-in-place-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const inodeBefore = statSync(path).ino
+
+      try {
+        const musicFile = await MusicFile.load(path)
+        musicFile.title = 'In place title'
+        await musicFile.save()
+
+        expect((await MusicFile.load(path)).title).toBe('In place title')
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+        if (process.platform !== 'win32') {
+          // The temporary file is renamed over the original.
+          expect(statSync(path).ino).not.toBe(inodeBefore)
+        }
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'keeps the permissions of an existing destination',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-permissions-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        copyFileSync(join(base, 'mp3.mp3'), targetPath)
+        chmodSync(sourcePath, 0o644)
+        chmodSync(targetPath, 0o640)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Permissions title'
+          await musicFile.save(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o640)
+          expect((await MusicFile.load(targetPath)).title).toBe('Permissions title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it('refuses to replace a read-only destination', async (context) => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-'))
+      const sourcePath = join(directory, 'source.mp3')
+      const targetPath = join(directory, 'target.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      copyFileSync(join(base, 'mp3.mp3'), targetPath)
+      const before = readFileSync(targetPath)
+      chmodSync(targetPath, 0o444)
+
+      try {
+        if (!readOnlyIsEnforced(targetPath)) {
+          context.skip()
+        }
+
+        const musicFile = await MusicFile.load(sourcePath)
+        musicFile.title = 'Read-only title'
+
+        await expect(musicFile.save(targetPath)).rejects.toThrow('is not writable')
+        expect(readFileSync(targetPath).equals(before)).toBe(true)
+        expect(readdirSync(directory).sort()).toEqual(['source.mp3', 'target.mp3'])
+      } finally {
+        chmodSync(targetPath, 0o644)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it('refuses to save a read-only file in place', async (context) => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-in-place-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const before = readFileSync(path)
+      chmodSync(path, 0o444)
+
+      try {
+        if (!readOnlyIsEnforced(path)) {
+          context.skip()
+        }
+
+        const musicFile = await MusicFile.load(path)
+        musicFile.title = 'Read-only title'
+
+        await expect(musicFile.save()).rejects.toThrow('is not writable')
+        expect(() => musicFile.saveSync()).toThrow('is not writable')
+        expect(readFileSync(path).equals(before)).toBe(true)
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+      } finally {
+        chmodSync(path, 0o644)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it('saves from a read-only source', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-source-'))
+      const sourcePath = join(directory, 'source.mp3')
+      const existingPath = join(directory, 'existing.mp3')
+      const newPath = join(directory, 'new.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      copyFileSync(join(base, 'mp3.mp3'), existingPath)
+      chmodSync(sourcePath, 0o444)
+
+      try {
+        const musicFile = await MusicFile.load(sourcePath)
+        musicFile.title = 'Read-only source title'
+        await musicFile.save(existingPath)
+        await musicFile.save(newPath)
+
+        expect((await MusicFile.load(existingPath)).title).toBe('Read-only source title')
+        expect((await MusicFile.load(newPath)).title).toBe('Read-only source title')
+        expect(readdirSync(directory).sort()).toEqual(['existing.mp3', 'new.mp3', 'source.mp3'])
+      } finally {
+        // Windows cannot delete read-only files.
+        for (const name of readdirSync(directory)) {
+          chmodSync(join(directory, name), 0o644)
+        }
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'writes the target of a dangling symlink and keeps the link',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-dangling-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const linkPath = join(directory, 'link.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        symlinkSync('target.mp3', linkPath)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          musicFile.title = 'Dangling title'
+          await musicFile.save(linkPath)
+
+          expect(lstatSync(linkPath).isSymbolicLink()).toBe(true)
+          expect((await MusicFile.load(join(directory, 'target.mp3'))).title).toBe('Dangling title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it('saves to the loaded file after the working directory changes', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        process.chdir(first)
+        const musicFile = await MusicFile.load('song.mp3')
+        process.chdir(second)
+
+        musicFile.title = 'Chdir title'
+        await musicFile.save()
+
+        expect(musicFile.path()).toBe('song.mp3')
+        expect((await MusicFile.load(join(first, 'song.mp3'))).title).toBe('Chdir title')
+        expect(readdirSync(second)).toEqual([])
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
     it.skipIf(process.arch === 'arm')(
       'keeps the source unchanged when the destination parent is missing',
       async () => {
@@ -313,6 +530,77 @@ describe('MusicFile', () => {
         expect(newMusicFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
+      }
+    })
+
+    it('saves in place through a temporary file without leaving it behind', () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-in-place-sync-'))
+      const path = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), path)
+      const inodeBefore = statSync(path).ino
+
+      try {
+        const musicFile = MusicFile.loadSync(path)
+        musicFile.title = 'In place title'
+        musicFile.saveSync()
+
+        expect(MusicFile.loadSync(path).title).toBe('In place title')
+        expect(readdirSync(directory)).toEqual(['source.mp3'])
+        if (process.platform !== 'win32') {
+          expect(statSync(path).ino).not.toBe(inodeBefore)
+        }
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'keeps the permissions of an existing destination',
+      () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-permissions-sync-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        copyFileSync(join(base, 'mp3.mp3'), targetPath)
+        chmodSync(sourcePath, 0o644)
+        chmodSync(targetPath, 0o640)
+
+        try {
+          const musicFile = MusicFile.loadSync(sourcePath)
+          musicFile.title = 'Permissions title'
+          musicFile.saveSync(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o640)
+          expect(MusicFile.loadSync(targetPath).title).toBe('Permissions title')
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it('saves to the loaded file after the working directory changes', () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-sync-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        process.chdir(first)
+        const musicFile = MusicFile.loadSync('song.mp3')
+        process.chdir(second)
+
+        musicFile.title = 'Chdir title'
+        musicFile.saveSync()
+
+        expect(musicFile.path()).toBe('song.mp3')
+        expect(MusicFile.loadSync(join(first, 'song.mp3')).title).toBe('Chdir title')
+        expect(readdirSync(second)).toEqual([])
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
       }
     })
 

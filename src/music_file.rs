@@ -19,39 +19,63 @@ use napi_derive::napi;
 #[cfg(not(target_arch = "wasm32"))]
 use tempfile::Builder;
 
-#[path = "helper.rs"]
-mod helper;
-#[path = "properties.rs"]
-mod properties;
-#[path = "tag.rs"]
-mod tag;
-
 #[cfg(target_arch = "wasm32")]
 const ERR_INVALID_IN_WASM: &str = "This method is invalid in wasm build";
 const ERR_FILE_LOADED_FROM_BUFFER: &str = "This file was loaded from a buffer";
+/// Same limit as Linux `MAXSYMLINKS`
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_SYMLINK_DEPTH: usize = 40;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
     Error::new(
         Status::GenericFailure,
-        format!("Failed accessing '{}': {}", path.display(), error),
+        format!("Failed accessing '{}': {}", display_path(path), error),
     )
 }
 
-/// Resolve an output path to the real file when it already exists. This keeps a
-/// symlink directory entry intact while allowing the target file to be replaced
-/// atomically. For a new path, canonicalize its parent so the temporary file is
-/// created on the same filesystem as the eventual destination.
+/// Format a path for an error message. `canonicalize` returns verbatim paths on
+/// Windows (`\\?\C:\...`, `\\?\UNC\server\share\...`); show them in their usual
+/// form instead.
 #[cfg(not(target_arch = "wasm32"))]
-fn resolve_target_path(path: &Path) -> Result<PathBuf> {
-    if path.exists() || fs::symlink_metadata(path).is_ok() {
-        return path.canonicalize().map_err(|error| path_error(path, error));
+fn display_path(path: &Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{rest}");
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return rest.to_owned();
+        }
     }
+    text
+}
 
-    let parent = path
-        .parent()
+/// Source and destination of a path-based save
+#[cfg(not(target_arch = "wasm32"))]
+pub struct SavePaths {
+    /// Absolute path of the loaded file
+    src: PathBuf,
+    /// Absolute destination path, equal to `src` for an in-place save
+    dest: PathBuf,
+    /// Source path as passed to `load`, for error messages
+    src_display: String,
+    /// Destination path as passed by the caller, for error messages
+    dest_display: String,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parent_dir(path: &Path) -> &Path {
+    path.parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
+        .unwrap_or_else(|| Path::new("."))
+}
+
+/// Resolve a path that does not exist yet: canonicalize its parent so the
+/// temporary file is created on the same filesystem as the destination.
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_new_path(path: &Path) -> Result<PathBuf> {
+    let parent = parent_dir(path);
     let parent = parent
         .canonicalize()
         .map_err(|error| path_error(parent, error))?;
@@ -62,15 +86,99 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
     Ok(parent.join(file_name))
 }
 
-/// Save a source file to a custom path by writing a temporary copy and then
-/// atomically replacing the resolved destination.
+/// Resolve an output path to the real file. Symlinks are followed, so the link
+/// itself stays intact while its target is replaced atomically. A dangling
+/// symlink resolves to the (not yet existing) file it points at.
 #[cfg(not(target_arch = "wasm32"))]
-fn save_to_custom_path_impl(src_path: &str, dest_path: &str, file: &LoftyTaggedFile) -> Result<()> {
-    let target = resolve_target_path(Path::new(dest_path))?;
+fn resolve_target_path(path: &Path) -> Result<PathBuf> {
+    let mut current = path.to_path_buf();
+
+    for _ in 0..MAX_SYMLINK_DEPTH {
+        if current.exists() {
+            return current
+                .canonicalize()
+                .map_err(|error| path_error(&current, error));
+        }
+
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let link = fs::read_link(&current).map_err(|error| path_error(&current, error))?;
+                current = if link.is_absolute() {
+                    link
+                } else {
+                    parent_dir(&current).join(link)
+                };
+            }
+            _ => return resolve_new_path(&current),
+        }
+    }
+
+    Err(path_error(path, "Too many levels of symbolic links"))
+}
+
+/// Add owner write permission only. `Permissions::set_readonly(false)` would
+/// make the file world-writable on Unix.
+#[cfg(not(target_arch = "wasm32"))]
+fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+
+    #[cfg(not(unix))]
+    {
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+    }
+
+    permissions
+}
+
+/// Refuse to replace an existing destination the caller cannot write.
+///
+/// The atomic rename only needs a writable directory, so without this check a
+/// read-only file would be replaced on Unix (and fail late on Windows). Opening
+/// for writing without truncating checks the real access rights and leaves the
+/// file untouched.
+#[cfg(not(target_arch = "wasm32"))]
+fn ensure_writable(target: &Path, dest_display: &str) -> Result<()> {
+    if !target.exists() {
+        return Ok(());
+    }
+
+    fs::OpenOptions::new()
+        .write(true)
+        .open(target)
+        .map(|_| ())
+        .map_err(|error| {
+            Error::new(
+                Status::GenericFailure,
+                format!("Destination file '{dest_display}' is not writable: {error}"),
+            )
+        })
+}
+
+/// Save tags by writing a temporary copy of the source next to the destination
+/// and then atomically replacing the resolved destination. Used both for saving
+/// in place (`src == dest`) and for saving to a custom path, so an interrupted
+/// save never leaves a half-written file behind.
+#[cfg(not(target_arch = "wasm32"))]
+fn save_to_path_atomic(paths: &SavePaths, file: &LoftyTaggedFile) -> Result<()> {
+    let dest_display = paths.dest_display.as_str();
+    let save_error = |error: &dyn std::fmt::Display| {
+        Error::new(
+            Status::GenericFailure,
+            format!("Failed saving to file '{dest_display}': {error}"),
+        )
+    };
+
+    let target = resolve_target_path(&paths.dest)?;
+    ensure_writable(&target, dest_display)?;
     let parent = target.parent().ok_or_else(|| {
         Error::new(
             Status::InvalidArg,
-            format!("Destination path '{}' has no parent", dest_path),
+            format!("Destination path '{dest_display}' has no parent"),
         )
     })?;
 
@@ -88,32 +196,54 @@ fn save_to_custom_path_impl(src_path: &str, dest_path: &str, file: &LoftyTaggedF
         .into_temp_path();
     let temporary_path: &Path = temporary.as_ref();
 
-    if let Err(error) = fs::copy(src_path, temporary_path) {
-        return Err(Error::new(
+    fs::copy(&paths.src, temporary_path).map_err(|error| {
+        Error::new(
             Status::GenericFailure,
             format!(
-                "Failed saving '{}' to custom path '{}': {}",
-                src_path, dest_path, error
+                "Failed copying '{}' to '{dest_display}': {error}",
+                paths.src_display
             ),
-        ));
-    }
+        )
+    })?;
+
+    // `fs::copy` gives the copy the source's permissions, which may be read-only.
+    // Make it writable for the tag write, then apply the final permissions: the
+    // destination's own when it already exists, otherwise the source's.
+    let source_permissions = fs::metadata(temporary_path)
+        .map_err(|error| save_error(&error))?
+        .permissions();
+    let final_permissions = fs::metadata(&target)
+        .map(|metadata| metadata.permissions())
+        .unwrap_or_else(|_| source_permissions.clone());
+    fs::set_permissions(temporary_path, owner_writable(source_permissions))
+        .map_err(|error| save_error(&error))?;
 
     file.save_to_path(temporary_path, WriteOptions::default())
-        .map_err(|error| {
-            Error::new(
-                Status::GenericFailure,
-                format!("Failed saving to file '{}': {}", dest_path, error),
-            )
-        })?;
+        .map_err(|error| save_error(&error))?;
+
+    fs::set_permissions(temporary_path, final_permissions).map_err(|error| save_error(&error))?;
 
     temporary.persist(&target).map_err(|error| {
         Error::new(
             Status::GenericFailure,
-            format!("Failed replacing file '{}': {}", dest_path, error),
+            format!("Failed replacing file '{dest_display}': {error}"),
         )
     })?;
 
     Ok(())
+}
+
+/// Write the tags into a copy of the source buffer and return it
+fn save_to_buffer(file: &LoftyTaggedFile, buffer: Vec<u8>) -> Result<Vec<u8>> {
+    let mut cursor = Cursor::new(buffer);
+    file.save_to(&mut cursor, WriteOptions::default())
+        .map_err(|error| {
+            Error::new(
+                Status::GenericFailure,
+                format!("Failed saving to buffer: {}", error),
+            )
+        })?;
+    Ok(cursor.into_inner())
 }
 
 pub(crate) enum MusicFileInner {
@@ -121,12 +251,25 @@ pub(crate) enum MusicFileInner {
         source_len: usize,
     },
     #[cfg(not(target_arch = "wasm32"))]
-    Path(String),
+    Path {
+        /// Path as passed by the caller, returned by `MusicFile.path`
+        path: String,
+        /// Absolute, canonical path resolved at load time. Saves use this, so a
+        /// later `process.chdir()` cannot redirect them.
+        resolved: PathBuf,
+        /// File size at load time, used to estimate the bit rate
+        file_size: u64,
+    },
 }
 
 pub enum AsyncLoadSource {
     #[cfg(not(target_arch = "wasm32"))]
-    Path(String),
+    Path {
+        /// Path as passed by the caller, returned by `MusicFile.path`
+        path: String,
+        /// `path` made absolute on the calling thread
+        absolute: PathBuf,
+    },
     Buffer(Vec<u8>),
 }
 
@@ -134,18 +277,39 @@ pub struct AsyncLoad {
     source: AsyncLoadSource,
 }
 
+/// Make a load path absolute against the current working directory.
+///
+/// Called on the JS thread, before any work is queued, so a later
+/// `process.chdir()` cannot change which file an async load reads. If the path
+/// cannot be made absolute (e.g. it is empty), it is kept as-is and opening it
+/// reports the error.
 #[cfg(not(target_arch = "wasm32"))]
-fn load_from_path_impl(path: &String) -> Result<MusicFile> {
-    let file = Probe::open(path)
+fn absolute_load_path(path: &str) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| PathBuf::from(path))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn load_from_path_impl(path: &str, absolute: &Path) -> Result<MusicFile> {
+    let file = Probe::open(absolute)
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .guess_file_type()
         .map_err(|e| Error::new(Status::InvalidArg, e))?
         .read()
         .map_err(|e| Error::new(Status::InvalidArg, e))?;
 
+    let resolved =
+        fs::canonicalize(absolute).map_err(|error| path_error(Path::new(path), error))?;
+    let file_size = fs::metadata(&resolved)
+        .map_err(|error| path_error(&resolved, error))?
+        .len();
+
     Ok(MusicFile {
         file,
-        inner: MusicFileInner::Path(path.clone()),
+        inner: MusicFileInner::Path {
+            path: path.to_owned(),
+            resolved,
+            file_size,
+        },
     })
 }
 
@@ -173,7 +337,7 @@ impl Task for AsyncLoad {
     fn compute(&mut self) -> napi::Result<Self::Output> {
         match &self.source {
             #[cfg(not(target_arch = "wasm32"))]
-            AsyncLoadSource::Path(path) => load_from_path_impl(path),
+            AsyncLoadSource::Path { path, absolute } => load_from_path_impl(path, absolute),
             AsyncLoadSource::Buffer(buffer) => load_from_buffer_impl(buffer),
         }
     }
@@ -185,12 +349,7 @@ impl Task for AsyncLoad {
 
 pub enum AsyncSaveTarget {
     #[cfg(not(target_arch = "wasm32"))]
-    InPlace(String),
-    #[cfg(not(target_arch = "wasm32"))]
-    CustomPath {
-        src_path: String,
-        dest_path: String,
-    },
+    Path(SavePaths),
     Buffer(Vec<u8>),
 }
 
@@ -208,33 +367,12 @@ impl Task for AsyncSave {
     fn compute(&mut self) -> Result<Self::Output> {
         match &mut self.target {
             #[cfg(not(target_arch = "wasm32"))]
-            AsyncSaveTarget::InPlace(path) => {
-                self.file
-                    .save_to_path(path.as_str(), WriteOptions::default())
-                    .map_err(|error| {
-                        Error::new(
-                            Status::GenericFailure,
-                            format!("Failed saving to file '{}': {}", path, error),
-                        )
-                    })?;
-                Ok(None)
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            AsyncSaveTarget::CustomPath {
-                src_path,
-                dest_path,
-            } => {
-                save_to_custom_path_impl(src_path.as_str(), dest_path.as_str(), &self.file)?;
+            AsyncSaveTarget::Path(paths) => {
+                save_to_path_atomic(paths, &self.file)?;
                 Ok(None)
             }
             AsyncSaveTarget::Buffer(buffer) => {
-                let mut cursor = Cursor::new(std::mem::take(buffer));
-
-                self.file
-                    .save_to(&mut cursor, WriteOptions::default())
-                    .map_err(|error| Error::from_reason(error.to_string()))?;
-
-                Ok(Some(cursor.into_inner()))
+                save_to_buffer(&self.file, std::mem::take(buffer)).map(Some)
             }
         }
     }
@@ -249,14 +387,47 @@ impl Task for AsyncSave {
 
 #[napi]
 pub struct MusicFile {
-    file: LoftyTaggedFile,
-    inner: MusicFileInner,
+    pub(crate) file: LoftyTaggedFile,
+    pub(crate) inner: MusicFileInner,
 }
 
 #[cfg(test)]
 impl MusicFile {
     pub(crate) fn new_for_test(file: LoftyTaggedFile, inner: MusicFileInner) -> Self {
         Self { file, inner }
+    }
+}
+
+impl MusicFile {
+    /// Resolve the source and destination paths for a path-based save.
+    ///
+    /// `dest_path` is `None` for an in-place save. A custom destination is made
+    /// absolute here, on the calling thread, so it is relative to the working
+    /// directory at call time.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn path_save_target(&self, dest_path: Option<String>) -> Result<SavePaths> {
+        let (src, src_display) = match &self.inner {
+            MusicFileInner::Buffer { .. } => {
+                return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER));
+            }
+            MusicFileInner::Path { path, resolved, .. } => (resolved.clone(), path.clone()),
+        };
+
+        let (dest, dest_display) = match dest_path {
+            None => (src.clone(), src_display.clone()),
+            Some(dest_path) => (
+                std::path::absolute(&dest_path)
+                    .map_err(|error| path_error(Path::new(&dest_path), error))?,
+                dest_path,
+            ),
+        };
+
+        Ok(SavePaths {
+            src,
+            dest,
+            src_display,
+            dest_display,
+        })
     }
 }
 
@@ -278,12 +449,13 @@ impl MusicFile {
                 #[cfg(target_arch = "wasm32")]
                 {
                     let _ = path;
-                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                    return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                 }
 
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    AsyncLoadSource::Path(path)
+                    let absolute = absolute_load_path(&path);
+                    AsyncLoadSource::Path { path, absolute }
                 }
             }
         };
@@ -309,12 +481,12 @@ impl MusicFile {
                 #[cfg(target_arch = "wasm32")]
                 {
                     let _ = path;
-                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                    return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                 }
 
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    load_from_path_impl(&path)
+                    load_from_path_impl(&path, &absolute_load_path(&path))
                 }
             }
         }
@@ -329,20 +501,15 @@ impl MusicFile {
         match &self.inner {
             MusicFileInner::Buffer { .. } => None,
             #[cfg(not(target_arch = "wasm32"))]
-            MusicFileInner::Path(path) => Some(path),
+            MusicFileInner::Path { path, .. } => Some(path),
         }
     }
 
-    /// Save tags into a buffer, returning the new buffer contents.
-    fn save_to_new_buffer(&self, mut buf: Vec<u8>) -> Result<Vec<u8>> {
-        let mut cursor = Cursor::new(&mut buf);
-        self.file
-            .save_to(&mut cursor, WriteOptions::default())
-            .map_err(|x| Error::from_reason(x.to_string()))?;
-        Ok(buf)
-    }
-
     /// Save metadata changes to the provided buffer, existing path, or a custom path
+    ///
+    /// Path saves write a temporary file next to the destination and then replace
+    /// the destination atomically, so an interrupted save never leaves a partially
+    /// written file.
     ///
     /// @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
     /// saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
@@ -350,6 +517,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): Promise<void>
   save(buffer: Uint8Array): Promise<Uint8Array>"#)]
@@ -358,52 +526,22 @@ impl MusicFile {
         buffer_or_path: Option<Either<Uint8Array, String>>,
     ) -> Result<AsyncTask<AsyncSave>> {
         let target = match buffer_or_path {
-            None => match &self.inner {
-                MusicFileInner::Buffer { .. } => {
-                    Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
-                }
-                #[cfg(not(target_arch = "wasm32"))]
-                MusicFileInner::Path(path) => Ok(AsyncSaveTarget::InPlace(path.clone())),
-            },
-            Some(buffer_or_path) => match buffer_or_path {
-                Either::A(buffer) => Ok(AsyncSaveTarget::Buffer(buffer.to_vec())),
-                Either::B(path) => {
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        let _ = path;
-                        return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
-                    }
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
-                            return Err(Error::new(
-                                Status::InvalidArg,
-                                ERR_FILE_LOADED_FROM_BUFFER,
-                            ));
-                        }
-
-                        let current = match &self.inner {
-                            MusicFileInner::Path(current) => current.clone(),
-                            MusicFileInner::Buffer { .. } => unreachable!(
-                                "buffer-loaded files are rejected before constructing a path target"
-                            ),
-                        };
-
-                        Ok(AsyncSaveTarget::CustomPath {
-                            src_path: current,
-                            dest_path: path,
-                        })
-                    }
-                }
-            },
-        }?;
+            Some(Either::A(buffer)) => AsyncSaveTarget::Buffer(buffer.to_vec()),
+            #[cfg(target_arch = "wasm32")]
+            None => return Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER)),
+            #[cfg(target_arch = "wasm32")]
+            Some(Either::B(_)) => return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM)),
+            #[cfg(not(target_arch = "wasm32"))]
+            None => AsyncSaveTarget::Path(self.path_save_target(None)?),
+            #[cfg(not(target_arch = "wasm32"))]
+            Some(Either::B(path)) => AsyncSaveTarget::Path(self.path_save_target(Some(path))?),
+        };
 
         // Create a snapshot of MusicFile, to send to the background task.
         let file = LoftyTaggedFile::new(
             self.file.file_type(),
             self.file.properties().clone(),
-            self.file.tags().to_owned().to_vec(),
+            self.file.tags().to_vec(),
         );
 
         Ok(AsyncTask::new(AsyncSave { target, file }))
@@ -419,6 +557,7 @@ impl MusicFile {
     /// @throws If the file was loaded from a buffer and no buffer is provided.
     /// @throws If the file was loaded from a buffer and wants to save to a custom path.
     /// @throws If custom path is provided in WebAssembly environments
+    /// @throws If the destination file already exists and is read-only
     /// @throws If saving fails due to file format constraints
     #[napi(ts_type = r#"(path?: string | null): void
   saveSync(buffer: Uint8Array): Uint8Array"#)]
@@ -427,56 +566,24 @@ impl MusicFile {
         buffer_or_path: Option<Either<Uint8Array, String>>,
     ) -> Result<Either<(), Uint8Array>> {
         match buffer_or_path {
-            None => match &self.inner {
-                MusicFileInner::Buffer { .. } => {
-                    Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER))
-                }
-                #[cfg(not(target_arch = "wasm32"))]
-                MusicFileInner::Path(path) => {
-                    self.file
-                        .save_to_path(path, WriteOptions::default())
-                        .map_err(|e| {
-                            Error::new(
-                                Status::GenericFailure,
-                                format!("Failed saving to file '{}': {}", path, e),
-                            )
-                        })?;
-                    Ok(Either::A(()))
-                }
-            },
-            Some(buffer_or_path) => match buffer_or_path {
-                Either::A(buffer) => {
-                    let buf = self.save_to_new_buffer(buffer.to_vec())?;
-                    Ok(Either::B(Uint8Array::from(buf)))
-                }
-                Either::B(path) => {
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        let _ = path;
-                        return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
-                    }
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        if matches!(&self.inner, MusicFileInner::Buffer { .. }) {
-                            return Err(Error::new(
-                                Status::InvalidArg,
-                                ERR_FILE_LOADED_FROM_BUFFER,
-                            ));
-                        }
-
-                        let src_path = match &self.inner {
-                            MusicFileInner::Path(current) => current.as_str(),
-                            MusicFileInner::Buffer { .. } => unreachable!(
-                                "buffer-loaded files are rejected before constructing a path target"
-                            ),
-                        };
-
-                        save_to_custom_path_impl(src_path, &path, &self.file)?;
-                        Ok(Either::A(()))
-                    }
-                }
-            },
+            Some(Either::A(buffer)) => {
+                let buffer = save_to_buffer(&self.file, buffer.to_vec())?;
+                Ok(Either::B(Uint8Array::from(buffer)))
+            }
+            #[cfg(target_arch = "wasm32")]
+            None => Err(Error::new(Status::InvalidArg, ERR_FILE_LOADED_FROM_BUFFER)),
+            #[cfg(target_arch = "wasm32")]
+            Some(Either::B(_)) => Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM)),
+            #[cfg(not(target_arch = "wasm32"))]
+            None => {
+                save_to_path_atomic(&self.path_save_target(None)?, &self.file)?;
+                Ok(Either::A(()))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Some(Either::B(path)) => {
+                save_to_path_atomic(&self.path_save_target(Some(path))?, &self.file)?;
+                Ok(Either::A(()))
+            }
         }
     }
 }

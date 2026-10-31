@@ -10,12 +10,80 @@ export declare class MetaPicture {
 
 export declare class MusicFile {
   /**
+   * Load music file from a file path or byte buffer
+   *
+   * @param source The file system path or a Uint8Array containing the audio file data
+   *
+   * @throws If the path doesn't exist or isn't accessible
+   * @throws If the file doesn't contain a valid audio format
+   * @throws If runs in WebAssembly environments (due to file system restrictions).
+   */
+  static load(path: string): Promise<MusicFile>
+  static load(buffer: Uint8Array): Promise<MusicFile>
+  /**
+   * Load music file from a file path or byte buffer
+   *
+   * This is the synchronous version of {@link load}
+   *
+   * @param source The file system path or a Uint8Array containing the audio file data
+   *
+   * @throws If the path doesn't exist or isn't accessible
+   * @throws If the file doesn't contain a valid audio format
+   * @throws If runs in WebAssembly environments (due to file system restrictions).
+   */
+  static loadSync(path: string): MusicFile
+  static loadSync(buffer: Uint8Array): MusicFile
+  /**
+   * Current audio file path
+   *
+   * For files loaded from path, this returns the file path.
+   * For files loaded from buffer, this returns `null`.
+   */
+  path(): string | null
+  /**
+   * Save metadata changes to the provided buffer, existing path, or a custom path
+   *
+   * Path saves write a temporary file next to the destination and then replace
+   * the destination atomically, so an interrupted save never leaves a partially
+   * written file.
+   *
+   * @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
+   * saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
+   *
+   * @throws If the file was loaded from a buffer and no buffer is provided.
+   * @throws If the file was loaded from a buffer and wants to save to a custom path.
+   * @throws If custom path is provided in WebAssembly environments
+   * @throws If the destination file already exists and is read-only
+   * @throws If saving fails due to file format constraints
+   */
+  save(path?: string | null): Promise<void>
+  save(buffer: Uint8Array): Promise<Uint8Array>
+  /**
+   * Save metadata changes to the provided buffer, existing path, or a custom path
+   *
+   * This is the synchronous version of {@link save}
+   *
+   * @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
+   * saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
+   *
+   * @throws If the file was loaded from a buffer and no buffer is provided.
+   * @throws If the file was loaded from a buffer and wants to save to a custom path.
+   * @throws If custom path is provided in WebAssembly environments
+   * @throws If the destination file already exists and is read-only
+   * @throws If saving fails due to file format constraints
+   */
+  saveSync(path?: string | null): void
+  saveSync(buffer: Uint8Array): Uint8Array
+  /**
    * Audio quality classification ("HQ", "SQ", or "HiRes")
    *
    * Quality is determined based on file format, sample rate, and bit depth:
-   * - HQ: Lossy formats (MP3, AAC, etc.)
-   * - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
-   * - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
+   * - HQ: Lossy formats (MP3, AAC, Opus, etc.)
+   * - SQ: Lossless formats up to CD quality (16-bit, up to 48kHz)
+   * - HiRes: Lossless formats with more than 16-bit depth or more than 48kHz sample rate
+   *
+   * MP4 files count as lossless when they carry a bit depth, which lofty only
+   * reports for ALAC and FLAC streams.
    */
   get quality(): "HQ" | "SQ" | "HiRes"
   /**
@@ -29,6 +97,7 @@ export declare class MusicFile {
    *
    * @note If the audio properties don't provide a bitrate, this method calculates
    * an approximate bitrate based on file size and duration, including metadata.
+   * The file size is the one measured when the file was loaded.
    * The calculated bitrate is constrained between 8 and 10,000 kbps.
    */
   get bitRate(): number | null
@@ -138,66 +207,9 @@ export declare class MusicFile {
    * Embedded pictures/album art list, or `null` if no picture is embedded or no available tag
    *
    * @note Returns all embedded pictures including album art, artist photos, etc.
+   * @note Each access copies every picture's data. Store the result in a variable
+   * instead of reading this property repeatedly.
    */
   get pictures(): Array<MetaPicture> | null
   set pictures(pictures: Array<MetaPicture> | null)
-  /**
-   * Load music file from a file path or byte buffer
-   *
-   * @param source The file system path or a Uint8Array containing the audio file data
-   *
-   * @throws If the path doesn't exist or isn't accessible
-   * @throws If the file doesn't contain a valid audio format
-   * @throws If runs in WebAssembly environments (due to file system restrictions).
-   */
-  static load(path: string): Promise<MusicFile>
-  static load(buffer: Uint8Array): Promise<MusicFile>
-  /**
-   * Load music file from a file path or byte buffer
-   *
-   * This is the synchronous version of {@link load}
-   *
-   * @param source The file system path or a Uint8Array containing the audio file data
-   *
-   * @throws If the path doesn't exist or isn't accessible
-   * @throws If the file doesn't contain a valid audio format
-   * @throws If runs in WebAssembly environments (due to file system restrictions).
-   */
-  static loadSync(path: string): MusicFile
-  static loadSync(buffer: Uint8Array): MusicFile
-  /**
-   * Current audio file path
-   *
-   * For files loaded from path, this returns the file path.
-   * For files loaded from buffer, this returns `null`.
-   */
-  path(): string | null
-  /**
-   * Save metadata changes to the provided buffer, existing path, or a custom path
-   *
-   * @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
-   * saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
-   *
-   * @throws If the file was loaded from a buffer and no buffer is provided.
-   * @throws If the file was loaded from a buffer and wants to save to a custom path.
-   * @throws If custom path is provided in WebAssembly environments
-   * @throws If saving fails due to file format constraints
-   */
-  save(path?: string | null): Promise<void>
-  save(buffer: Uint8Array): Promise<Uint8Array>
-  /**
-   * Save metadata changes to the provided buffer, existing path, or a custom path
-   *
-   * This is the synchronous version of {@link save}
-   *
-   * @param bufferOrPath Optional output file path (Node.js only) or source buffer. If provided,
-   * saves to this path (or a new buffer that creates from the source buffer with new tags) for this call.
-   *
-   * @throws If the file was loaded from a buffer and no buffer is provided.
-   * @throws If the file was loaded from a buffer and wants to save to a custom path.
-   * @throws If custom path is provided in WebAssembly environments
-   * @throws If saving fails due to file format constraints
-   */
-  saveSync(path?: string | null): void
-  saveSync(buffer: Uint8Array): Uint8Array
 }

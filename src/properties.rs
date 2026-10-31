@@ -8,23 +8,32 @@ impl MusicFile {
     /// Audio quality classification ("HQ", "SQ", or "HiRes")
     ///
     /// Quality is determined based on file format, sample rate, and bit depth:
-    /// - HQ: Lossy formats (MP3, AAC, etc.)
-    /// - SQ: Lossless formats at CD quality (44.1kHz, 16-bit)
-    /// - HiRes: Lossless formats exceeding CD quality (>44.1kHz, >=16-bit)
+    /// - HQ: Lossy formats (MP3, AAC, Opus, etc.)
+    /// - SQ: Lossless formats up to CD quality (16-bit, up to 48kHz)
+    /// - HiRes: Lossless formats with more than 16-bit depth or more than 48kHz sample rate
+    ///
+    /// MP4 files count as lossless when they carry a bit depth, which lofty only
+    /// reports for ALAC and FLAC streams.
     #[napi(getter, ts_return_type = r#""HQ" | "SQ" | "HiRes""#)]
     pub fn quality(&self) -> &str {
-        let is_lossless = matches!(
-            self.file.file_type(),
-            FileType::Flac | FileType::Ape | FileType::Aiff | FileType::Wav | FileType::WavPack
-        );
+        let is_lossless = match self.file.file_type() {
+            FileType::Flac | FileType::Ape | FileType::Aiff | FileType::Wav | FileType::WavPack => {
+                true
+            }
+            FileType::Mp4 => self.bit_depth().is_some(),
+            _ => false,
+        };
 
         if !is_lossless {
-            "HQ"
+            return "HQ";
+        }
+
+        let hi_res_depth = self.bit_depth().is_some_and(|bd| bd > 16);
+        let hi_res_rate = self.sample_rate().is_some_and(|sr| sr > 48_000);
+        if hi_res_depth || hi_res_rate {
+            "HiRes"
         } else {
-            match (self.sample_rate(), self.bit_depth()) {
-                (Some(sr), Some(bd)) if sr > 44100 && bd >= 16 => "HiRes",
-                _ => "SQ",
-            }
+            "SQ"
         }
     }
 
@@ -40,6 +49,7 @@ impl MusicFile {
     ///
     /// @note If the audio properties don't provide a bitrate, this method calculates
     /// an approximate bitrate based on file size and duration, including metadata.
+    /// The file size is the one measured when the file was loaded.
     /// The calculated bitrate is constrained between 8 and 10,000 kbps.
     #[napi(getter)]
     pub fn bit_rate(&self) -> Option<u32> {
@@ -60,9 +70,7 @@ impl MusicFile {
         let file_size_bytes = match &self.inner {
             MusicFileInner::Buffer { source_len } => *source_len as f64,
             #[cfg(not(target_arch = "wasm32"))]
-            MusicFileInner::Path(path) => std::fs::metadata(path)
-                .map(|m| m.len() as f64)
-                .unwrap_or(0.0),
+            MusicFileInner::Path { file_size, .. } => *file_size as f64,
         };
         let bitrate_kbps = ((file_size_bytes * 8.0) / (duration_secs * 1000.0)).round() as u32;
 

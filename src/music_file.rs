@@ -271,7 +271,7 @@ impl MusicFile {
                 #[cfg(target_arch = "wasm32")]
                 {
                     let _ = path;
-                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                    return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                 }
 
                 #[cfg(not(target_arch = "wasm32"))]
@@ -302,7 +302,7 @@ impl MusicFile {
                 #[cfg(target_arch = "wasm32")]
                 {
                     let _ = path;
-                    return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                    return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                 }
 
                 #[cfg(not(target_arch = "wasm32"))]
@@ -364,7 +364,7 @@ impl MusicFile {
                     #[cfg(target_arch = "wasm32")]
                     {
                         let _ = path;
-                        return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                        return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                     }
 
                     #[cfg(not(target_arch = "wasm32"))]
@@ -446,7 +446,7 @@ impl MusicFile {
                     #[cfg(target_arch = "wasm32")]
                     {
                         let _ = path;
-                        return Err(Error::new(Status::GenericFailure, ERR_INVALID_IN_WASM));
+                        return Err(Error::new(Status::InvalidArg, ERR_INVALID_IN_WASM));
                     }
 
                     #[cfg(not(target_arch = "wasm32"))]

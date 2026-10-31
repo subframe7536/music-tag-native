@@ -118,6 +118,25 @@ if (pictures && pictures.length > 0) {
 - `saveSync(bufferOrPath?: Uint8Array | string | null): Uint8Array | undefined` - Synchronous version of `save`.
 - `path(): string | null` - Return the source path for path-loaded files, or `null` for buffer-loaded files.
 
+##### How path saves work
+
+Every path save, including an in-place save, copies the source file to a temporary file next to the destination, writes the tags there, and then renames it over the destination. An interrupted save never leaves a half-written file. This has some side effects:
+
+- The destination is a new file. A hard link to the old file keeps the old content. Symlinks are followed, so the link stays and its target is replaced.
+- Permission bits of an existing destination are kept. A new destination gets the source's. Owner/group (Unix), extended attributes and ACLs (Windows) are not copied.
+- Each save copies the whole file, so it needs free space for a second copy of it.
+- An existing destination that is read-only is never replaced: the save throws `Destination file '...' is not writable`.
+- On Windows, the rename fails while another program holds the destination open without allowing deletion (some media players do).
+
+#### Which tag is used
+
+Reads and writes use the format's primary tag (e.g. ID3v2 for MP3). Without it, they use another existing tag, and an ID3v1 tag only when nothing else exists, since it is the most limited (30-byte text fields, no pictures).
+
+- When the tag in use cannot store a field, a primary tag is created with the existing values copied into it.
+- An ID3v1 tag never receives writes directly. Setting a field on an ID3v1-only MP3 creates an ID3v2 tag.
+- An existing ID3v1 tag is updated along with the main tag, so the two do not disagree. Fields ID3v1 cannot store are skipped there.
+- Setting an unsupported field throws, e.g. `Rating is not supported by the APE tag`. Setting it to `null` never throws, and never creates a tag.
+
 #### Metadata Properties (Read/Write)
 
 All properties can be read and written. Set to `null` to remove a tag.

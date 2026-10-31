@@ -207,6 +207,8 @@ export declare class MusicFile {
    * Embedded pictures/album art list, or `null` if no picture is embedded or no available tag
    *
    * @note Returns all embedded pictures including album art, artist photos, etc.
+   * @note Each access copies every picture's data. Store the result in a variable
+   * instead of reading this property repeatedly.
    */
   get pictures(): Array<MetaPicture> | null
   set pictures(pictures: Array<MetaPicture> | null)

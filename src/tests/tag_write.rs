@@ -94,6 +94,25 @@ fn test_supported_field_writes_to_existing_secondary_tag() {
 }
 
 #[test]
+fn test_id3v1_write_always_creates_primary_tag() {
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_artist("Old artist".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, id3v1);
+
+    // ID3v1 maps a title, but truncates it to 30 bytes on save.
+    t.set_title(Either::A("Title".to_string())).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(t.title().as_deref(), Some("Title"));
+    assert_eq!(t.artist().as_deref(), Some("Old artist"));
+    // The ID3v1 tag is kept in sync instead of keeping a stale value.
+    assert_eq!(
+        t.file.tag(TagType::Id3v1).unwrap().title().as_deref(),
+        Some("Title")
+    );
+}
+
+#[test]
 fn test_promotion_keeps_ape_lyrics_readable() {
     let mut ape = Tag::new(TagType::Ape);
     ape.insert_text(ItemKey::Lyrics, "hello".to_string());
@@ -125,6 +144,19 @@ fn test_promotion_keeps_multi_valued_items() {
 
     let primary = t.file.primary_tag().unwrap();
     assert_eq!(primary.get_strings(ItemKey::TrackArtist).count(), 2);
+}
+
+#[test]
+fn test_failed_setter_does_not_change_secondary_only_file() {
+    // An APE file with only an ID3v1 tag: neither ID3v1 nor APE stores ratings.
+    let mut t = music_file_with_tag(FileType::Ape, Tag::new(TagType::Id3v1));
+
+    let error = t.set_rating(Either::A(3.0)).unwrap_err();
+
+    // ID3v1 is skipped, so the error is for the APE tag that would be created.
+    assert_eq!(error.reason, "Rating is not supported by the APE tag");
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Ape).is_none());
 }
 
 #[test]

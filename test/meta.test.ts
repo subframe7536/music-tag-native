@@ -493,4 +493,49 @@ describe('MP3 with only an ID3v1 tag', () => {
     expect(reloaded.composer).toBe('Composer Name')
     expect(reloaded.title).toBe('V1 Title')
   })
+
+  it('persists pictures through save and reload', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.pictures = [new MetaPicture('image/png', new Uint8Array([1, 2, 3, 4]))]
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('ID3V2')
+    expect(reloaded.pictures).toHaveLength(1)
+    expect(reloaded.title).toBe('V1 Title')
+  })
+
+  it('does not truncate a title longer than 30 bytes', () => {
+    const title = 'A title that is longer than thirty bytes'
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = title
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('ID3V2')
+    expect(reloaded.title).toBe(title)
+  })
+
+  it('updates the ID3v1 tag too', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = 'New Title'
+
+    const saved = musicFile.saveSync(source.slice()) as Uint8Array
+    const v1Title = new TextDecoder()
+      .decode(saved.subarray(saved.length - 125, saved.length - 95))
+      .replace(/\0+$/, '')
+
+    expect(v1Title).toBe('New Title')
+    expect(MusicFile.loadSync(saved).title).toBe('New Title')
+  })
+
+  it('keeps a removed field removed after save and reload', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = null
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.title).toBeNull()
+    expect(reloaded.artist).toBe('V1 Artist')
+  })
 })

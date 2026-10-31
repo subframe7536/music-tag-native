@@ -106,11 +106,33 @@ impl MusicFile {
     /// - If only another tag exists (e.g. APE on an MP3), `f` runs on that tag
     ///   first. Only when that tag cannot store the field is a primary tag
     ///   created, seeded with the existing tag's items and pictures.
+    /// - An ID3v1 tag never receives writes directly: it drops pictures and
+    ///   truncates text on save, so a primary tag is always created instead.
     /// - A new primary tag is inserted only after `f` succeeds on it, so a failed
     ///   setter never changes the file's tags.
+    /// - After a successful write, `f` also runs on an existing ID3v1 tag, so it
+    ///   does not keep stale values. Fields ID3v1 cannot store are skipped there.
     ///
-    /// `f` may run twice and must leave the tag unchanged when it returns an error.
+    /// `f` may run several times and must leave the tag unchanged when it returns
+    /// an error.
     pub(crate) fn tag_mut<R, F>(&mut self, f: F) -> Result<R>
+    where
+        F: Fn(&mut Tag) -> Result<R>,
+    {
+        let result = self.write_tag(&f)?;
+
+        if self.file.primary_tag_type() != TagType::Id3v1 {
+            if let Some(id3v1) = self.file.tag_mut(TagType::Id3v1) {
+                // Best effort: ID3v1 has no slot for many fields (album artist,
+                // lyrics, ...), and the write already succeeded on the main tag.
+                let _ = f(id3v1);
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn write_tag<R, F>(&mut self, f: &F) -> Result<R>
     where
         F: Fn(&mut Tag) -> Result<R>,
     {
@@ -120,11 +142,11 @@ impl MusicFile {
         }
 
         let existing_error = match self.file.first_tag_mut() {
-            Some(tag) => match f(tag) {
+            Some(tag) if tag.tag_type() != TagType::Id3v1 => match f(tag) {
                 Ok(result) => return Ok(result),
                 Err(error) => Some(error),
             },
-            None => None,
+            _ => None,
         };
 
         let mut candidate = Tag::new(primary_type);

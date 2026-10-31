@@ -1,6 +1,10 @@
-use napi::{bindgen_prelude::Uint8Array, Either};
+use napi::{
+    bindgen_prelude::{Null, Uint8Array},
+    Either,
+};
 
 use crate::{
+    meta_picture::MetaPicture,
     music_file::MusicFile,
     tests::{music_file_from_buffer, music_file_from_path, samples_dir},
 };
@@ -138,6 +142,122 @@ fn test_ogg_buffer_save_round_trip() {
 
     let t2 = MusicFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().as_deref(), Some("OGG Rust Title"));
+}
+
+/// An MP3 whose only tag is an ID3v1 tag with the title "V1 Title"
+fn id3v1_only_mp3() -> Vec<u8> {
+    let mut buffer = std::fs::read(samples_dir().join("mp3-no-tags.mp3")).expect("read failed");
+    let mut tag = [0u8; 128];
+    tag[..3].copy_from_slice(b"TAG");
+    tag[3..11].copy_from_slice(b"V1 Title");
+    tag[127] = 255; // no genre
+    buffer.extend_from_slice(&tag);
+    buffer
+}
+
+fn save_and_reload(t: &MusicFile, source: Vec<u8>) -> MusicFile {
+    let Either::B(saved_buf) = t.save_sync(Some(Either::A(source.into()))).unwrap() else {
+        panic!("save_sync did not return a buffer");
+    };
+    MusicFile::load_sync(Either::A(saved_buf)).expect("load_sync failed")
+}
+
+#[test]
+fn test_id3v1_only_mp3_keeps_pictures_after_save() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+
+    let picture = MetaPicture::new("image/png".to_string(), vec![1u8, 2, 3, 4].into(), None);
+    t.set_pictures(Either::A(vec![&picture])).unwrap();
+
+    let reloaded = save_and_reload(&t, source);
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.pictures().map(|pictures| pictures.len()), Some(1));
+    assert_eq!(reloaded.title().as_deref(), Some("V1 Title"));
+}
+
+#[test]
+fn test_id3v1_only_mp3_keeps_long_title_after_save() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    let title = "A".repeat(40);
+
+    t.set_title(Either::A(title.clone())).unwrap();
+
+    let reloaded = save_and_reload(&t, source);
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.title(), Some(title));
+}
+
+/// Title stored in the trailing ID3v1 tag of `buffer`, or `None` without a tag
+fn id3v1_title(buffer: &[u8]) -> Option<String> {
+    let tag = &buffer[buffer.len() - 128..];
+    if &tag[..3] != b"TAG" {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&tag[3..33])
+            .trim_end_matches('\0')
+            .to_string(),
+    )
+}
+
+fn save_to_new_buffer(t: &MusicFile, source: Vec<u8>) -> Vec<u8> {
+    let Either::B(saved_buf) = t.save_sync(Some(Either::A(source.into()))).unwrap() else {
+        panic!("save_sync did not return a buffer");
+    };
+    saved_buf.to_vec()
+}
+
+#[test]
+fn test_id3v1_only_mp3_updates_id3v1_on_write() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+
+    t.set_title(Either::A("New Title".to_string())).unwrap();
+
+    let saved = save_to_new_buffer(&t, source);
+    assert_eq!(id3v1_title(&saved).as_deref(), Some("New Title"));
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.title().as_deref(), Some("New Title"));
+}
+
+#[test]
+fn test_id3v1_only_mp3_removed_field_stays_removed() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+
+    t.set_title(Either::B(Null)).unwrap();
+
+    let saved = save_to_new_buffer(&t, source);
+    // The title was the only ID3v1 field, so the emptied tag is not written.
+    assert_eq!(id3v1_title(&saved), None);
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.title(), None);
+}
+
+#[test]
+fn test_id3v2_and_id3v1_mp3_updates_both_tags() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    t.set_title(Either::A("First".to_string())).unwrap();
+    let with_both = save_to_new_buffer(&t, source);
+
+    // Now the file has both tags, so writes go to the existing ID3v2 tag.
+    let mut t = MusicFile::load_sync(Either::A(with_both.clone().into())).unwrap();
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    t.set_title(Either::A("Second".to_string())).unwrap();
+    // A field ID3v1 cannot store still succeeds.
+    t.set_album_artist(Either::A("Album Artist".to_string()))
+        .unwrap();
+
+    let saved = save_to_new_buffer(&t, with_both);
+    assert_eq!(id3v1_title(&saved).as_deref(), Some("Second"));
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.title().as_deref(), Some("Second"));
+    assert_eq!(reloaded.album_artist().as_deref(), Some("Album Artist"));
 }
 
 // ── path save ───────────────────────────────────────────────────────────

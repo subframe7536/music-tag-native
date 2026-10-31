@@ -38,7 +38,7 @@ fn path_error(path: &Path, error: impl std::fmt::Display) -> Error {
 /// Windows (`\\?\C:\...`, `\\?\UNC\server\share\...`); show them in their usual
 /// form instead.
 #[cfg(not(target_arch = "wasm32"))]
-fn display_path(path: &Path) -> String {
+pub(crate) fn display_path(path: &Path) -> String {
     let text = path.display().to_string();
     if cfg!(windows) {
         if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
@@ -119,7 +119,7 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
 /// Add owner write permission only. `Permissions::set_readonly(false)` would
 /// make the file world-writable on Unix.
 #[cfg(not(target_arch = "wasm32"))]
-fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
+pub(crate) fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

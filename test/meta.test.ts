@@ -551,4 +551,86 @@ describe('MP3 with only an ID3v1 tag', () => {
     expect(new TextDecoder().decode(saved.subarray(0, 3))).not.toBe('ID3')
     expect(MusicFile.loadSync(saved).artist).toBe('V1 Artist')
   })
+
+  it('updates the ID3v1 year too', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.year = 2024
+
+    const saved = musicFile.saveSync(source.slice()) as Uint8Array
+    const v1Year = new TextDecoder().decode(saved.subarray(saved.length - 35, saved.length - 31))
+
+    expect(v1Year).toBe('2024')
+    expect(MusicFile.loadSync(saved).year).toBe(2024)
+  })
+})
+
+/** Build an APEv2 tag (footer only) from key/value pairs */
+function apeTag(items: [key: string, value: string][]): Uint8Array {
+  const encoder = new TextEncoder()
+  const parts = items.map(([key, value]) => {
+    const keyBytes = encoder.encode(`${key}\0`)
+    const valueBytes = encoder.encode(value)
+    const item = new Uint8Array(8 + keyBytes.length + valueBytes.length)
+    new DataView(item.buffer).setUint32(0, valueBytes.length, true)
+    item.set(keyBytes, 8)
+    item.set(valueBytes, 8 + keyBytes.length)
+    return item
+  })
+  const bodyLength = parts.reduce((sum, part) => sum + part.length, 0)
+  const tag = new Uint8Array(bodyLength + 32)
+  let offset = 0
+  for (const part of parts) {
+    tag.set(part, offset)
+    offset += part.length
+  }
+  const footer = new DataView(tag.buffer, bodyLength)
+  tag.set(encoder.encode('APETAGEX'), bodyLength)
+  footer.setUint32(8, 2000, true) // version
+  footer.setUint32(12, bodyLength + 32, true) // tag size without header
+  footer.setUint32(16, items.length, true)
+  return tag
+}
+
+describe('MP3 with ID3v1 and APE tags but no ID3v2', () => {
+  const audio = readFileSync(join(base, 'mp3-no-tags.mp3'))
+  const ape = apeTag([
+    ['Title', 'APE Title'],
+    ['Composer', 'APE Composer'],
+  ])
+  const v1 = id3v1Tag({ title: 'V1 Title', artist: 'V1 Artist' })
+  const source = new Uint8Array(audio.length + ape.length + v1.length)
+  source.set(audio, 0)
+  source.set(ape, audio.length)
+  source.set(v1, audio.length + ape.length)
+
+  it('reads the APE tag instead of ID3v1', () => {
+    const musicFile = MusicFile.loadSync(source)
+
+    expect(musicFile.tagType).toBe('APE')
+    expect(musicFile.title).toBe('APE Title')
+    expect(musicFile.composer).toBe('APE Composer')
+  })
+
+  it('writes to the APE tag when it can store the field', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = 'New Title'
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('APE')
+    expect(reloaded.title).toBe('New Title')
+  })
+
+  it('seeds a new ID3v2 tag from the APE tag', () => {
+    const musicFile = MusicFile.loadSync(source)
+    // APE cannot store a rating, so an ID3v2 tag is created.
+    musicFile.rating = 4
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('ID3V2')
+    expect(reloaded.rating).toBe(4)
+    expect(reloaded.title).toBe('APE Title')
+    expect(reloaded.composer).toBe('APE Composer')
+  })
 })

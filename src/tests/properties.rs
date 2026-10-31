@@ -171,3 +171,73 @@ fn test_path_bitrate_uses_file_size_at_load_time() {
 
     assert_eq!(t.bit_rate(), Some(128));
 }
+
+#[test]
+fn test_quality_other_lossless_formats() {
+    for file_type in [FileType::Ape, FileType::Aiff, FileType::WavPack] {
+        let sq = music_file_with_format(file_type, Some(44_100), Some(16));
+        assert_eq!(sq.quality(), "SQ", "{file_type:?}");
+
+        let hi_res = music_file_with_format(file_type, Some(44_100), Some(24));
+        assert_eq!(hi_res.quality(), "HiRes", "{file_type:?}");
+    }
+}
+
+#[test]
+fn test_quality_boundaries() {
+    // Each limit is exclusive: 16-bit / 48 kHz is the highest SQ.
+    let t = music_file_with_format(FileType::Flac, Some(48_000), Some(16));
+    assert_eq!(t.quality(), "SQ");
+
+    let t = music_file_with_format(FileType::Flac, Some(48_001), Some(16));
+    assert_eq!(t.quality(), "HiRes");
+
+    let t = music_file_with_format(FileType::Flac, Some(48_000), Some(17));
+    assert_eq!(t.quality(), "HiRes");
+}
+
+#[test]
+fn test_quality_lossless_without_bit_depth_uses_sample_rate() {
+    let t = music_file_with_format(FileType::Wav, Some(44_100), None);
+    assert_eq!(t.quality(), "SQ");
+
+    let t = music_file_with_format(FileType::Wav, Some(96_000), None);
+    assert_eq!(t.quality(), "HiRes");
+
+    let t = music_file_with_format(FileType::Wav, None, None);
+    assert_eq!(t.quality(), "SQ");
+}
+
+fn music_file_with_duration(duration: Duration, source_len: usize) -> MusicFile {
+    MusicFile::new_for_test(
+        LoftyTaggedFile::new(
+            FileType::Mpeg,
+            FileProperties::new(duration, None, None, None, None, None, None),
+            Vec::new(),
+        ),
+        MusicFileInner::Buffer { source_len },
+    )
+}
+
+#[test]
+fn test_bitrate_is_none_without_duration() {
+    let t = music_file_with_duration(Duration::ZERO, 160_000);
+    assert_eq!(t.bit_rate(), None);
+}
+
+#[test]
+fn test_bitrate_estimate_outside_valid_range_is_none() {
+    // 1 byte over 10 s is far below 8 kbps.
+    let t = music_file_with_duration(Duration::from_secs(10), 1);
+    assert_eq!(t.bit_rate(), None);
+
+    // 20 MB over 10 s is 16,000 kbps, above the 10,000 kbps cap.
+    let t = music_file_with_duration(Duration::from_secs(10), 20_000_000);
+    assert_eq!(t.bit_rate(), None);
+
+    // The limits themselves are accepted.
+    let t = music_file_with_duration(Duration::from_secs(10), 10_000);
+    assert_eq!(t.bit_rate(), Some(8));
+    let t = music_file_with_duration(Duration::from_secs(10), 12_500_000);
+    assert_eq!(t.bit_rate(), Some(10_000));
+}

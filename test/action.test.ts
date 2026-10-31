@@ -35,6 +35,31 @@ function readOnlyIsEnforced(path: string): boolean {
 }
 
 describe('MusicFile', () => {
+  describe.runIf(isWasi)('path methods in WebAssembly', () => {
+    const source = new Uint8Array(readFileSync(join(base, 'mp3.mp3')))
+    const wasmError = { code: 'InvalidArg', message: 'This method is invalid in wasm build' }
+    const bufferError = { code: 'InvalidArg', message: 'This file was loaded from a buffer' }
+
+    it('rejects loading from a path as an invalid argument', () => {
+      expect(() => MusicFile.load(join(base, 'mp3.mp3'))).toThrow(
+        expect.objectContaining(wasmError),
+      )
+      expect(() => MusicFile.loadSync(join(base, 'mp3.mp3'))).toThrow(
+        expect.objectContaining(wasmError),
+      )
+    })
+
+    it('rejects saving to a path as an invalid argument', () => {
+      const musicFile = MusicFile.loadSync(source)
+
+      expect(() => musicFile.save('out.mp3')).toThrow(expect.objectContaining(wasmError))
+      expect(() => musicFile.saveSync('out.mp3')).toThrow(expect.objectContaining(wasmError))
+      expect(() => musicFile.save()).toThrow(expect.objectContaining(bufferError))
+      expect(() => musicFile.saveSync()).toThrow(expect.objectContaining(bufferError))
+      expect(musicFile.path()).toBeNull()
+    })
+  })
+
   describe.skipIf(isWasi)('load', () => {
     it('should load an MP3 file', async () => {
       const path = join(base, 'mp3.mp3')
@@ -285,6 +310,103 @@ describe('MusicFile', () => {
         expect((await MusicFile.load(realPath)).title).not.toBe('Hard-link title')
         expect((await MusicFile.load(hardLinkPath)).title).toBe('Hard-link title')
       } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')('fails on a symlink loop', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-symlink-loop-'))
+      const sourcePath = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      symlinkSync('b.mp3', join(directory, 'a.mp3'))
+      symlinkSync('a.mp3', join(directory, 'b.mp3'))
+
+      try {
+        const musicFile = await MusicFile.load(sourcePath)
+
+        await expect(musicFile.save(join(directory, 'a.mp3'))).rejects.toThrow(
+          'Too many levels of symbolic links',
+        )
+      } finally {
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'gives a new destination the permissions of the source',
+      async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-new-mode-'))
+        const sourcePath = join(directory, 'source.mp3')
+        const targetPath = join(directory, 'target.mp3')
+        copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+        chmodSync(sourcePath, 0o640)
+
+        try {
+          const musicFile = await MusicFile.load(sourcePath)
+          await musicFile.save(targetPath)
+
+          expect(statSync(targetPath).mode & 0o777).toBe(0o640)
+        } finally {
+          rmSync(directory, { force: true, recursive: true })
+        }
+      },
+    )
+
+    it('names the destination as passed in save errors', async (context) => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-error-path-'))
+      const sourcePath = join(directory, 'source.mp3')
+      const targetPath = join(directory, 'target.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      copyFileSync(join(base, 'mp3.mp3'), targetPath)
+      chmodSync(targetPath, 0o444)
+      const cwd = process.cwd()
+
+      try {
+        if (!readOnlyIsEnforced(targetPath)) {
+          context.skip()
+        }
+
+        process.chdir(directory)
+        const musicFile = await MusicFile.load('source.mp3')
+
+        await expect(musicFile.save('target.mp3')).rejects.toThrow(
+          "Destination file 'target.mp3' is not writable",
+        )
+      } finally {
+        process.chdir(cwd)
+        chmodSync(targetPath, 0o644)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
+    it('saves a relative custom path against the working directory at call time', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-save-chdir-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      const sourcePath = join(directory, 'source.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      const cwd = process.cwd()
+
+      try {
+        const musicFile = await MusicFile.load(sourcePath)
+        musicFile.title = 'Relative title'
+
+        // The worker thread may run after the directory change below. Repeat to
+        // make a regression likely to show up.
+        for (let i = 0; i < 20; i++) {
+          process.chdir(first)
+          const pending = musicFile.save(`out-${i}.mp3`)
+          process.chdir(second)
+          await pending
+        }
+
+        expect(readdirSync(second)).toEqual([])
+        expect(readdirSync(first)).toHaveLength(20)
+        expect((await MusicFile.load(join(first, 'out-0.mp3'))).title).toBe('Relative title')
+      } finally {
+        process.chdir(cwd)
         rmSync(directory, { force: true, recursive: true })
       }
     })

@@ -2,12 +2,16 @@ use std::time::Duration;
 
 use lofty::{
     file::{FileType, TaggedFile as LoftyTaggedFile, TaggedFileExt},
+    picture::{MimeType, Picture, PictureType},
     properties::FileProperties,
     tag::{Accessor, ItemKey, Tag, TagType},
 };
-use napi::Either;
+use napi::{bindgen_prelude::Null, Either};
 
-use crate::music_file::{MusicFile, MusicFileInner};
+use crate::{
+    meta_picture::MetaPicture,
+    music_file::{MusicFile, MusicFileInner},
+};
 
 fn music_file_with_tag(file_type: FileType, tag: Tag) -> MusicFile {
     MusicFile::new_for_test(
@@ -344,4 +348,132 @@ fn test_clearing_existing_field_on_id3v1_only_edits_id3v1() {
     assert!(t.file.tag(TagType::Id3v2).is_none());
     assert_eq!(t.title(), None);
     assert_eq!(t.artist().as_deref(), Some("Artist"));
+}
+
+#[test]
+fn test_setting_value_id3v1_already_has_does_not_create_tag() {
+    let mut t = id3v1_only_with_title_and_artist();
+
+    // Nothing changes, so there is no reason to add an ID3v2 tag.
+    t.set_title(Either::A("Song".to_string())).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    assert!(t.file.tag(TagType::Id3v2).is_none());
+    assert_eq!(t.title().as_deref(), Some("Song"));
+}
+
+// ── unsupported fields other than rating ────────────────────────────────
+
+#[test]
+fn test_unsupported_text_field_error_names_field_and_tag() {
+    // The MP4 ilst map has a label key but no publisher key.
+    let mut ilst = Tag::new(TagType::Mp4Ilst);
+    ilst.set_title("Title".to_string());
+    let mut t = music_file_with_tag(FileType::Mp4, ilst);
+
+    let error = t
+        .set_publisher(Either::A("Publisher".to_string()))
+        .unwrap_err();
+
+    assert_eq!(error.status, napi::Status::InvalidArg);
+    assert_eq!(error.reason, "Publisher is not supported by the ILST tag");
+    assert_eq!(t.publisher(), None);
+    assert_eq!(t.title().as_deref(), Some("Title"));
+    assert_eq!(t.file.tags().len(), 1);
+}
+
+// ── pictures while seeding and writing ──────────────────────────────────
+
+fn picture(data: Vec<u8>, pic_type: PictureType) -> Picture {
+    Picture::unchecked(data)
+        .pic_type(pic_type)
+        .mime_type(MimeType::Png)
+        .build()
+}
+
+#[test]
+fn test_promotion_copies_pictures() {
+    let mut ape = Tag::new(TagType::Ape);
+    ape.set_title("Title".to_string());
+    ape.push_picture(picture(vec![1, 2, 3], PictureType::CoverFront));
+    let mut t = music_file_with_tag(FileType::Mpeg, ape);
+
+    // APE cannot store a rating, so an ID3v2 tag is created from the APE tag.
+    t.set_rating(Either::A(4.0)).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    let pictures = t.pictures().expect("pictures should be copied");
+    assert_eq!(pictures.len(), 1);
+    assert_eq!(pictures[0].data.to_vec(), vec![1, 2, 3]);
+    assert_eq!(pictures[0].cover_type, "Cover Art (Front)");
+}
+
+#[test]
+fn test_set_pictures_shrinks_and_skips_id3v1() {
+    let mut id3v2 = Tag::new(TagType::Id3v2);
+    for data in [vec![1u8], vec![2], vec![3]] {
+        id3v2.push_picture(picture(data, PictureType::Other));
+    }
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_title("Title".to_string());
+    let mut t = music_file_with_tags(FileType::Mpeg, vec![id3v2, id3v1]);
+
+    let replacement = MetaPicture::new("image/png".to_string(), vec![9u8].into(), None);
+    t.set_pictures(Either::A(vec![&replacement])).unwrap();
+
+    let pictures = t.pictures().unwrap();
+    assert_eq!(pictures.len(), 1);
+    assert_eq!(pictures[0].data.to_vec(), vec![9]);
+    // ID3v1 cannot store pictures, so the sync leaves it without any.
+    assert_eq!(t.file.tag(TagType::Id3v1).unwrap().picture_count(), 0);
+
+    t.set_pictures(Either::B(Null)).unwrap();
+    assert!(t.pictures().is_none());
+}
+
+// ── year: calendar rules and time ───────────────────────────────────────
+
+fn file_with_recording_date(date: &str) -> MusicFile {
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.insert_text(ItemKey::RecordingDate, date.to_string());
+    music_file_with_tag(FileType::Mpeg, tag)
+}
+
+#[test]
+fn test_set_year_follows_century_leap_rules() {
+    // 1900 is not a leap year (divisible by 100 but not by 400).
+    let mut t = file_with_recording_date("2000-02-29");
+    t.set_year(Either::A(1900.0)).unwrap();
+    assert_eq!(recording_date(&t).as_deref(), Some("1900-02-28"));
+
+    // 2000 is a leap year (divisible by 400), so Feb 29 is kept.
+    let mut t = file_with_recording_date("1904-02-29");
+    t.set_year(Either::A(2000.0)).unwrap();
+    assert_eq!(recording_date(&t).as_deref(), Some("2000-02-29"));
+}
+
+#[test]
+fn test_set_year_keeps_time() {
+    let mut t = file_with_recording_date("2020-05-17T10:20:30");
+
+    t.set_year(Either::A(2024.0)).unwrap();
+
+    assert_eq!(recording_date(&t).as_deref(), Some("2024-05-17T10:20:30"));
+}
+
+#[test]
+fn test_set_year_replaces_year_key() {
+    // ID3v1 tags read from a file store the year under `ItemKey::Year`. The
+    // full date goes to `RecordingDate`, so the old `Year` must not linger.
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.insert_text(ItemKey::Year, "1999".to_string());
+    let mut id3v2 = Tag::new(TagType::Id3v2);
+    id3v2.insert_text(ItemKey::RecordingDate, "1999".to_string());
+    let mut t = music_file_with_tags(FileType::Mpeg, vec![id3v2, id3v1]);
+
+    t.set_year(Either::A(2024.0)).unwrap();
+
+    let id3v1 = t.file.tag(TagType::Id3v1).unwrap();
+    assert_eq!(id3v1.get_string(ItemKey::Year), None);
+    assert_eq!(id3v1.get_string(ItemKey::RecordingDate), Some("2024"));
 }

@@ -517,3 +517,221 @@ fn test_buffer_loaded_file_rejects_path_save() {
         .expect("save should fail");
     assert_eq!(error.status, napi::Status::InvalidArg);
 }
+
+#[test]
+fn test_custom_path_error_names_caller_path() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let dest = dir.path().join("read-only.mp3");
+    std::fs::copy(&src, &dest).unwrap();
+    set_readonly(&dest, true);
+    if !readonly_is_enforced(&dest) {
+        set_readonly(&dest, false);
+        return;
+    }
+
+    let dest_arg = dest.to_str().unwrap().to_string();
+    let t = load_path(&src);
+    let result = t.save_sync(Some(Either::B(dest_arg.clone())));
+    set_readonly(&dest, false);
+
+    let error = result.err().expect("save should fail");
+    let expected = format!("Destination file '{dest_arg}' is not writable");
+    assert!(
+        error.reason.starts_with(&expected),
+        "unexpected error: {}",
+        error.reason
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_new_destination_gets_source_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let dest = dir.path().join("new.mp3");
+
+    let t = load_path(&src);
+    t.save_sync(Some(Either::B(dest.to_str().unwrap().to_string())))
+        .unwrap();
+
+    let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_owner_writable_adds_only_owner_write_bit() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let permissions = crate::music_file::owner_writable(std::fs::Permissions::from_mode(0o444));
+    assert_eq!(permissions.mode() & 0o777, 0o644);
+}
+
+#[cfg(not(unix))]
+#[test]
+fn test_owner_writable_clears_read_only_flag() {
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+    permissions.set_readonly(true);
+
+    assert!(!crate::music_file::owner_writable(permissions).readonly());
+}
+
+#[cfg(windows)]
+#[test]
+fn test_display_path_strips_verbatim_prefix() {
+    use crate::music_file::display_path;
+    use std::path::Path;
+
+    assert_eq!(
+        display_path(Path::new(r"\\?\C:\music\song.mp3")),
+        r"C:\music\song.mp3"
+    );
+    assert_eq!(
+        display_path(Path::new(r"\\?\UNC\server\share\song.mp3")),
+        r"\\server\share\song.mp3"
+    );
+    assert_eq!(
+        display_path(Path::new(r"C:\music\song.mp3")),
+        r"C:\music\song.mp3"
+    );
+}
+
+#[cfg(not(windows))]
+#[test]
+fn test_display_path_keeps_unix_paths() {
+    use crate::music_file::display_path;
+    use std::path::Path;
+
+    assert_eq!(
+        display_path(Path::new("/music/song.mp3")),
+        "/music/song.mp3"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_to_dangling_absolute_symlink_writes_link_target() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let link = dir.path().join("link.mp3");
+    let target = dir.path().join("target.mp3");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let t = load_path(&src);
+    t.save_sync(Some(Either::B(link.to_str().unwrap().to_string())))
+        .unwrap();
+
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert!(target.is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_through_symlink_chain_writes_final_target() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let first = dir.path().join("first.mp3");
+    let second = dir.path().join("second.mp3");
+    let target = dir.path().join("target.mp3");
+    std::os::unix::fs::symlink("second.mp3", &first).unwrap();
+    std::os::unix::fs::symlink("target.mp3", &second).unwrap();
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Chain".to_string())).unwrap();
+    t.save_sync(Some(Either::B(first.to_str().unwrap().to_string())))
+        .unwrap();
+
+    for link in [&first, &second] {
+        assert!(std::fs::symlink_metadata(link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+    assert_eq!(load_path(&target).title().as_deref(), Some("Chain"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_save_to_symlink_into_missing_directory_fails() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let link = dir.path().join("link.mp3");
+    std::os::unix::fs::symlink("missing/target.mp3", &link).unwrap();
+
+    let t = load_path(&src);
+    let error = t
+        .save_sync(Some(Either::B(link.to_str().unwrap().to_string())))
+        .err()
+        .expect("save should fail");
+
+    assert!(
+        error.reason.starts_with("Failed accessing"),
+        "unexpected error: {}",
+        error.reason
+    );
+    assert!(!dir.path().join("missing").exists());
+}
+
+#[test]
+fn test_buffer_save_error_has_context() {
+    let t = music_file_from_buffer("mp3.mp3");
+
+    let error = t
+        .save_sync(Some(Either::A(vec![1u8, 2, 3].into())))
+        .err()
+        .expect("save should fail");
+
+    assert!(
+        error.reason.starts_with("Failed saving to buffer: "),
+        "unexpected error: {}",
+        error.reason
+    );
+}
+
+#[test]
+fn test_load_errors_are_invalid_arguments() {
+    for path in ["", "does-not-exist.mp3"] {
+        let error = MusicFile::load_sync(Either::B(path.to_string()))
+            .err()
+            .expect("load should fail");
+        assert_eq!(error.status, napi::Status::InvalidArg, "path {path:?}");
+    }
+}
+
+#[test]
+fn test_load_records_file_size() {
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let expected = std::fs::metadata(&path).unwrap().len();
+
+    let t = load_path(&path);
+
+    match &t.inner {
+        crate::music_file::MusicFileInner::Path { file_size, .. } => {
+            assert_eq!(*file_size, expected)
+        }
+        crate::music_file::MusicFileInner::Buffer { .. } => panic!("loaded from a path"),
+    }
+}
+
+/// Year stored in the trailing ID3v1 tag of `buffer`
+fn id3v1_year(buffer: &[u8]) -> String {
+    let tag = &buffer[buffer.len() - 128..];
+    assert_eq!(&tag[..3], b"TAG");
+    String::from_utf8_lossy(&tag[93..97]).into_owned()
+}
+
+#[test]
+fn test_set_year_updates_id3v1_on_save() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+
+    t.set_year(Either::A(2024.0)).unwrap();
+
+    let saved = save_to_new_buffer(&t, source);
+    assert_eq!(id3v1_year(&saved), "2024");
+    let reloaded = MusicFile::load_sync(Either::A(saved.into())).unwrap();
+    assert_eq!(reloaded.year(), Some(2024));
+}

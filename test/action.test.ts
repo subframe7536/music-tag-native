@@ -2,7 +2,9 @@ import {
   copyFileSync,
   linkSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -244,6 +246,32 @@ describe('MusicFile', () => {
       }
     })
 
+    it('saves to the loaded file after the working directory changes', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        process.chdir(first)
+        const musicFile = await MusicFile.load('song.mp3')
+        process.chdir(second)
+
+        musicFile.title = 'Chdir title'
+        await musicFile.save()
+
+        expect(musicFile.path()).toBe('song.mp3')
+        expect((await MusicFile.load(join(first, 'song.mp3'))).title).toBe('Chdir title')
+        expect(readdirSync(second)).toEqual([])
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
     it.skipIf(process.arch === 'arm')(
       'keeps the source unchanged when the destination parent is missing',
       async () => {
@@ -313,6 +341,32 @@ describe('MusicFile', () => {
         expect(newMusicFile.title).toBe('Saved Custom Path Title')
       } finally {
         rmSync(targetPath, { force: true })
+      }
+    })
+
+    it('saves to the loaded file after the working directory changes', () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-chdir-sync-'))
+      const first = join(directory, 'first')
+      const second = join(directory, 'second')
+      mkdirSync(first)
+      mkdirSync(second)
+      copyFileSync(join(base, 'mp3.mp3'), join(first, 'song.mp3'))
+      const cwd = process.cwd()
+
+      try {
+        process.chdir(first)
+        const musicFile = MusicFile.loadSync('song.mp3')
+        process.chdir(second)
+
+        musicFile.title = 'Chdir title'
+        musicFile.saveSync()
+
+        expect(musicFile.path()).toBe('song.mp3')
+        expect(MusicFile.loadSync(join(first, 'song.mp3')).title).toBe('Chdir title')
+        expect(readdirSync(second)).toEqual([])
+      } finally {
+        process.chdir(cwd)
+        rmSync(directory, { force: true, recursive: true })
       }
     })
 

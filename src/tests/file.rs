@@ -139,3 +139,36 @@ fn test_ogg_buffer_save_round_trip() {
     let t2 = MusicFile::load_sync(Either::A(saved_buf)).expect("load_sync failed");
     assert_eq!(t2.title().as_deref(), Some("OGG Rust Title"));
 }
+
+// ── path save ───────────────────────────────────────────────────────────
+
+/// Copy a sample into a fresh temporary directory and return (dir, path)
+fn copy_sample_to_temp(name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().expect("tempdir failed");
+    let path = dir.path().join(name);
+    std::fs::copy(samples_dir().join(name), &path).expect("copy failed");
+    (dir, path)
+}
+
+#[test]
+fn test_path_getter_returns_path_as_passed() {
+    let (_dir, path) = copy_sample_to_temp("mp3.mp3");
+    let path = path.to_str().unwrap().to_string();
+    let t = MusicFile::load_sync(Either::B(path.clone())).unwrap();
+
+    assert_eq!(t.path(), Some(&path));
+}
+
+#[test]
+fn test_buffer_loaded_file_rejects_path_save() {
+    let t = music_file_from_buffer("mp3.mp3");
+
+    let error = t.save_sync(None).err().expect("save should fail");
+    assert_eq!(error.status, napi::Status::InvalidArg);
+
+    let error = t
+        .save_sync(Some(Either::B("out.mp3".to_string())))
+        .err()
+        .expect("save should fail");
+    assert_eq!(error.status, napi::Status::InvalidArg);
+}

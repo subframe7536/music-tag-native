@@ -69,7 +69,7 @@ impl MusicFile {
         let file_size_bytes = match &self.inner {
             MusicFileInner::Buffer { source_len } => *source_len as f64,
             #[cfg(not(target_arch = "wasm32"))]
-            MusicFileInner::Path(path) => std::fs::metadata(path)
+            MusicFileInner::Path { resolved, .. } => std::fs::metadata(resolved)
                 .map(|m| m.len() as f64)
                 .unwrap_or(0.0),
         };

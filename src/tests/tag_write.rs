@@ -127,14 +127,29 @@ fn test_set_year_without_existing_date() {
 
 #[test]
 fn test_supported_field_writes_to_existing_secondary_tag() {
-    let mut t = music_file_with_tag(FileType::Mpeg, Tag::new(TagType::Id3v1));
+    let mut t = music_file_with_tag(FileType::Mpeg, Tag::new(TagType::Ape));
 
     t.set_title(Either::A("Title".to_string())).unwrap();
 
-    // ID3v1 can store a title, so no ID3v2 tag is created.
-    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+    // APE can store a title, so no ID3v2 tag is created.
+    assert_eq!(t.tag_type().as_deref(), Some("APE"));
     assert!(t.file.tag(TagType::Id3v2).is_none());
     assert_eq!(t.title().as_deref(), Some("Title"));
+}
+
+#[test]
+fn test_id3v1_write_always_creates_primary_tag() {
+    let mut id3v1 = Tag::new(TagType::Id3v1);
+    id3v1.set_artist("Old artist".to_string());
+    let mut t = music_file_with_tag(FileType::Mpeg, id3v1);
+
+    // ID3v1 maps a title, but truncates it to 30 bytes on save.
+    t.set_title(Either::A("Title".to_string())).unwrap();
+
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(t.title().as_deref(), Some("Title"));
+    assert_eq!(t.artist().as_deref(), Some("Old artist"));
+    assert_eq!(t.file.tag(TagType::Id3v1).unwrap().title().as_deref(), None);
 }
 
 #[test]
@@ -178,7 +193,8 @@ fn test_failed_setter_does_not_change_secondary_only_file() {
 
     let error = t.set_rating(Either::A(3.0)).unwrap_err();
 
-    assert_eq!(error.reason, "Rating is not supported by the ID3V1 tag");
+    // ID3v1 is skipped, so the error is for the APE tag that would be created.
+    assert_eq!(error.reason, "Rating is not supported by the APE tag");
     assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
     assert!(t.file.tag(TagType::Ape).is_none());
 }

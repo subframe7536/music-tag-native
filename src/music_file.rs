@@ -86,6 +86,25 @@ fn resolve_target_path(path: &Path) -> Result<PathBuf> {
     Err(path_error(path, "Too many levels of symbolic links"))
 }
 
+/// Add owner write permission only. `Permissions::set_readonly(false)` would
+/// make the file world-writable on Unix.
+#[cfg(not(target_arch = "wasm32"))]
+fn owner_writable(mut permissions: fs::Permissions) -> fs::Permissions {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+
+    #[cfg(not(unix))]
+    {
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+    }
+
+    permissions
+}
+
 /// Save tags by writing a temporary copy of `src_path` next to the destination
 /// and then atomically replacing the resolved destination. Used both for saving
 /// in place (`src_path == dest_path`) and for saving to a custom path, so an
@@ -133,16 +152,24 @@ fn save_to_path_atomic(src_path: &Path, dest_path: &Path, file: &LoftyTaggedFile
         )
     })?;
 
+    // `fs::copy` gives the copy the source's permissions, which may be read-only.
+    // Make it writable for the tag write, then apply the final permissions: the
+    // destination's own when it already exists, otherwise the source's. This
+    // runs after writing the tags, so a read-only destination can still be
+    // replaced.
+    let source_permissions = fs::metadata(temporary_path)
+        .map_err(|error| save_error(&error))?
+        .permissions();
+    let final_permissions = fs::metadata(&target)
+        .map(|metadata| metadata.permissions())
+        .unwrap_or_else(|_| source_permissions.clone());
+    fs::set_permissions(temporary_path, owner_writable(source_permissions))
+        .map_err(|error| save_error(&error))?;
+
     file.save_to_path(temporary_path, WriteOptions::default())
         .map_err(|error| save_error(&error))?;
 
-    // `fs::copy` gives the copy the source's permissions. Keep the destination's
-    // own permissions when it already exists. This runs after writing the tags,
-    // so a read-only destination can still be replaced.
-    if let Ok(metadata) = fs::metadata(&target) {
-        fs::set_permissions(temporary_path, metadata.permissions())
-            .map_err(|error| save_error(&error))?;
-    }
+    fs::set_permissions(temporary_path, final_permissions).map_err(|error| save_error(&error))?;
 
     temporary.persist(&target).map_err(|error| {
         Error::new(

@@ -317,6 +317,33 @@ describe('MusicFile', () => {
       },
     )
 
+    it('saves from a read-only source', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'music-tag-native-read-only-source-'))
+      const sourcePath = join(directory, 'source.mp3')
+      const existingPath = join(directory, 'existing.mp3')
+      const newPath = join(directory, 'new.mp3')
+      copyFileSync(join(base, 'mp3.mp3'), sourcePath)
+      copyFileSync(join(base, 'mp3.mp3'), existingPath)
+      chmodSync(sourcePath, 0o444)
+
+      try {
+        const musicFile = await MusicFile.load(sourcePath)
+        musicFile.title = 'Read-only source title'
+        await musicFile.save(existingPath)
+        await musicFile.save(newPath)
+
+        expect((await MusicFile.load(existingPath)).title).toBe('Read-only source title')
+        expect((await MusicFile.load(newPath)).title).toBe('Read-only source title')
+        expect(readdirSync(directory).sort()).toEqual(['existing.mp3', 'new.mp3', 'source.mp3'])
+      } finally {
+        // Windows cannot delete read-only files.
+        for (const name of readdirSync(directory)) {
+          chmodSync(join(directory, name), 0o644)
+        }
+        rmSync(directory, { force: true, recursive: true })
+      }
+    })
+
     it.skipIf(process.platform === 'win32')(
       'writes the target of a dangling symlink and keeps the link',
       async () => {

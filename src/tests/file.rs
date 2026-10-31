@@ -1,6 +1,7 @@
 use napi::{bindgen_prelude::Uint8Array, Either};
 
 use crate::{
+    meta_picture::MetaPicture,
     music_file::MusicFile,
     tests::{music_file_from_buffer, music_file_from_path, samples_dir},
 };
@@ -140,6 +141,52 @@ fn test_ogg_buffer_save_round_trip() {
     assert_eq!(t2.title().as_deref(), Some("OGG Rust Title"));
 }
 
+/// An MP3 whose only tag is an ID3v1 tag with the title "V1 Title"
+fn id3v1_only_mp3() -> Vec<u8> {
+    let mut buffer = std::fs::read(samples_dir().join("mp3-no-tags.mp3")).expect("read failed");
+    let mut tag = [0u8; 128];
+    tag[..3].copy_from_slice(b"TAG");
+    tag[3..11].copy_from_slice(b"V1 Title");
+    tag[127] = 255; // no genre
+    buffer.extend_from_slice(&tag);
+    buffer
+}
+
+fn save_and_reload(t: &MusicFile, source: Vec<u8>) -> MusicFile {
+    let Either::B(saved_buf) = t.save_sync(Some(Either::A(source.into()))).unwrap() else {
+        panic!("save_sync did not return a buffer");
+    };
+    MusicFile::load_sync(Either::A(saved_buf)).expect("load_sync failed")
+}
+
+#[test]
+fn test_id3v1_only_mp3_keeps_pictures_after_save() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    assert_eq!(t.tag_type().as_deref(), Some("ID3V1"));
+
+    let picture = MetaPicture::new("image/png".to_string(), vec![1u8, 2, 3, 4].into(), None);
+    t.set_pictures(Either::A(vec![&picture])).unwrap();
+
+    let reloaded = save_and_reload(&t, source);
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.pictures().map(|pictures| pictures.len()), Some(1));
+    assert_eq!(reloaded.title().as_deref(), Some("V1 Title"));
+}
+
+#[test]
+fn test_id3v1_only_mp3_keeps_long_title_after_save() {
+    let source = id3v1_only_mp3();
+    let mut t = MusicFile::load_sync(Either::A(Uint8Array::with_data_copied(&source))).unwrap();
+    let title = "A".repeat(40);
+
+    t.set_title(Either::A(title.clone())).unwrap();
+
+    let reloaded = save_and_reload(&t, source);
+    assert_eq!(reloaded.tag_type().as_deref(), Some("ID3V2"));
+    assert_eq!(reloaded.title(), Some(title));
+}
+
 // ── path save ───────────────────────────────────────────────────────────
 
 /// Copy a sample into a fresh temporary directory and return (dir, path)
@@ -239,6 +286,58 @@ fn test_custom_path_save_replaces_read_only_destination() {
     let mode = std::fs::metadata(&dest).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o444);
     assert_eq!(load_path(&dest).title().as_deref(), Some("Read only"));
+}
+
+fn set_readonly(path: &std::path::Path, readonly: bool) {
+    let mut permissions = std::fs::metadata(path).unwrap().permissions();
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(readonly);
+    std::fs::set_permissions(path, permissions).unwrap();
+}
+
+#[test]
+fn test_custom_path_save_from_read_only_source() {
+    let (dir, src) = copy_sample_to_temp("mp3.mp3");
+    let existing = dir.path().join("existing.mp3");
+    let new = dir.path().join("new.mp3");
+    std::fs::copy(&src, &existing).unwrap();
+    set_readonly(&src, true);
+
+    let mut t = load_path(&src);
+    t.set_title(Either::A("Read-only source".to_string()))
+        .unwrap();
+    let existing_result = t.save_sync(Some(Either::B(existing.to_str().unwrap().to_string())));
+    let new_result = t.save_sync(Some(Either::B(new.to_str().unwrap().to_string())));
+
+    // Restore before asserting, so the temporary directory can be deleted on Windows.
+    let new_readonly = std::fs::metadata(&new).map(|m| m.permissions().readonly());
+    set_readonly(&src, false);
+    if new.exists() {
+        set_readonly(&new, false);
+    }
+
+    assert!(
+        existing_result.is_ok(),
+        "save to existing destination failed"
+    );
+    assert!(new_result.is_ok(), "save to new destination failed");
+    assert_eq!(
+        load_path(&existing).title().as_deref(),
+        Some("Read-only source")
+    );
+    assert_eq!(load_path(&new).title().as_deref(), Some("Read-only source"));
+    // The existing destination keeps its permissions, a new one gets the source's.
+    // On Windows, tempfile's `persist` resets file attributes, so only Unix keeps
+    // the read-only flag on the new file.
+    assert!(!std::fs::metadata(&existing)
+        .unwrap()
+        .permissions()
+        .readonly());
+    #[cfg(unix)]
+    assert!(new_readonly.unwrap());
+    #[cfg(not(unix))]
+    let _ = new_readonly;
+    assert!(temp_entries(dir.path()).is_empty());
 }
 
 #[cfg(unix)]

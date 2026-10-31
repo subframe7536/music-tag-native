@@ -493,4 +493,26 @@ describe('MP3 with only an ID3v1 tag', () => {
     expect(reloaded.composer).toBe('Composer Name')
     expect(reloaded.title).toBe('V1 Title')
   })
+
+  it('persists pictures through save and reload', () => {
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.pictures = [new MetaPicture('image/png', new Uint8Array([1, 2, 3, 4]))]
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('ID3V2')
+    expect(reloaded.pictures).toHaveLength(1)
+    expect(reloaded.title).toBe('V1 Title')
+  })
+
+  it('does not truncate a title longer than 30 bytes', () => {
+    const title = 'A title that is longer than thirty bytes'
+    const musicFile = MusicFile.loadSync(source)
+    musicFile.title = title
+
+    const reloaded = MusicFile.loadSync(musicFile.saveSync(source.slice()) as Uint8Array)
+
+    expect(reloaded.tagType).toBe('ID3V2')
+    expect(reloaded.title).toBe(title)
+  })
 })

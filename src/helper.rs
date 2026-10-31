@@ -98,9 +98,11 @@ impl MusicFile {
     /// Execute a mutable function on the tag that should receive a write.
     ///
     /// - If the primary tag exists, `f` runs on it.
-    /// - If only another tag exists (e.g. ID3v1 or APE on an MP3), `f` runs on that
-    ///   tag first. Only when that tag cannot store the field is a primary tag
+    /// - If only another tag exists (e.g. APE on an MP3), `f` runs on that tag
+    ///   first. Only when that tag cannot store the field is a primary tag
     ///   created, seeded with the existing tag's items and pictures.
+    /// - An ID3v1 tag never receives writes directly: it drops pictures and
+    ///   truncates text on save, so a primary tag is always created instead.
     /// - A new primary tag is inserted only after `f` succeeds on it, so a failed
     ///   setter never changes the file's tags.
     ///
@@ -115,11 +117,11 @@ impl MusicFile {
         }
 
         let existing_error = match self.file.first_tag_mut() {
-            Some(tag) => match f(tag) {
+            Some(tag) if tag.tag_type() != TagType::Id3v1 => match f(tag) {
                 Ok(result) => return Ok(result),
                 Err(error) => Some(error),
             },
-            None => None,
+            _ => None,
         };
 
         let mut candidate = Tag::new(primary_type);
